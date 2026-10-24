@@ -39,19 +39,19 @@ export function syncAll() {
   return running;
 }
 
-// Attach the prototype's analysis (field, tags, group) to imported entries, matched by post URL.
-export async function withAnalysis(entries) {
-  let items;
+// The prototype's library, shaped for the graph. Images load straight from the prototype.
+export async function readLibrary() {
   try {
-    items = (await fetch(`${AXIA}/api/library`, { cache: "no-store", signal: AbortSignal.timeout(2000) }).then((r) => r.json())).items;
+    const d = await fetch(`${AXIA}/api/library`, { cache: "no-store", signal: AbortSignal.timeout(2000) }).then((r) => r.json());
+    syncAll(); // catch up on thumbnails imported while it was off
+    return {
+      online: true,
+      items: d.items.map((i) => ({
+        id: i.id, url: i.page_url || null, title: i.title, image: `http://localhost:8770/img/${i.file}`,
+        fields: i.fields?.length ? i.fields : i.field ? [i.field] : [], group_name: i.group_name, status: i.status, tags: [...(i.user_tags ?? []), ...(i.tags ?? [])],
+      })),
+    };
   } catch {
-    return entries; // prototype not running: show entries without tags
+    return { online: false, items: [] };
   }
-  syncAll();
-  const byPage = new Map(items.flatMap((i) => (i.pages?.length ? i.pages : [i.page_url]).map((p) => [p, i])));
-  return entries.map((e) => {
-    const i = byPage.get(e.url);
-    if (!i || i.status !== "tagged") return e;
-    return { ...e, field: i.field, tags: [...(i.user_tags ?? []), ...(i.tags ?? [])], group_name: i.group_name };
-  });
 }

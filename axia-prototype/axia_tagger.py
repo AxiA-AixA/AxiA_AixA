@@ -6,7 +6,7 @@ Tag Lab(lab.py)은 이 엔진을 시험하는 작업대이고, 실제 서비스 
 tag_image() 를 그대로 부르면 돼요. 외부 라이브러리 없이 동작해요(Pillow가 있으면 이미지 축소에 씀).
 
 입력  : 이미지 바이트, Court(태그 규칙집), 모델 설정
-출력  : {"field": "3d", "tags": [...], "group_name": "...", "dropped": [...], "in_tokens": n, "out_tokens": n, "latency_ms": n}
+출력  : {"fields": ["graphic", "package"], "field": "graphic", "tags": [...], "group_name": "...", "dropped": [...], "in_tokens": n, "out_tokens": n, "latency_ms": n}
 
 Court = 팀이 합의한 태그 규칙집(JSON). 태그마다 뜻(def)을 적어 두면 AI가 그 뜻대로 고르고,
 목록에 없는 태그는 엔진이 걸러내요(dropped). 이게 "같은 이미지는 언제나 같은 태그"를 지키는 장치예요.
@@ -15,7 +15,7 @@ import base64, io, json, os, re, shutil, subprocess, tempfile, time, urllib.erro
 
 FIELDS = {  # 폴더 이름(한국어) → 내부 코드
     "영상": "video", "AI이미지": "ai_image", "3D": "3d", "그래픽": "graphic",
-    "편집디자인": "editorial", "사진": "photo", "UIUX": "ui_ux", "공간전시": "spatial",
+    "편집디자인": "editorial", "사진": "photo", "UIUX": "ui_ux", "공간전시": "architecture", "건축": "architecture",
 }
 FIELD_DEFS = {
     "video": "still from film / motion / animation",
@@ -25,7 +25,7 @@ FIELD_DEFS = {
     "editorial": "editorial / book / magazine / layout design",
     "photo": "camera photograph (fashion, product, portrait, landscape)",
     "ui_ux": "app screen, website, interface",
-    "spatial": "interior, retail, exhibition, stage or set design",
+    "architecture": "architecture, buildings, interiors, retail, exhibition, stage or set design",
     "typography": "work where lettering / type is the main subject (type specimens, lettering, type-led posters)",
     "painting": "painting or drawing made by hand or digitally in a painterly way (oil, watercolour, gouache, sketch)",
     "package": "packaging design: boxes, bottles, labels, bags",
@@ -49,7 +49,7 @@ PRICES = {  # USD per 1M tokens (input, output), 2026-10 기준. 바뀌면 여�
 
 # ---------- Court (태그 규칙집) ----------
 def court_from_tags_txt(text):
-    """예전 tags.txt('# --- 그룹' 줄 + 태그 줄)를 Court로 바꿔요."""
+    """tags.txt('# --- 그룹' 줄 + '태그' 또는 '태그 | 뜻' 줄)를 Court로 바꿔요."""
     tags, group = [], "기타"
     for line in text.splitlines():
         s = line.strip()
@@ -60,14 +60,18 @@ def court_from_tags_txt(text):
             if m:
                 group = m.group(1).strip()
             continue
-        tags.append({"tag": norm_tag(s), "group": group, "def": ""})
+        tag, _, d = s.partition("|")
+        if norm_tag(tag):
+            tags.append({"tag": norm_tag(tag), "group": group, "def": d.strip()})
     return {"version": 1, "note": "tags.txt에서 시작", "min_tags": 5, "max_tags": 8, "tags": tags}
 
 
 def norm_tag(t):
-    t = str(t).strip().lower().replace("_", "-")
-    t = re.sub(r"\s+", "-", t)
-    return re.sub(r"-{2,}", "-", t).strip("-")
+    """태그는 한 단어, 첫 글자만 대문자: "minimal" → "Minimal". 두 단어 이상("soft light", "soft-light")이면 ""."""
+    t = str(t).strip()
+    if not t or re.search(r"[\s_\-/]", t):
+        return ""
+    return t[:1].upper() + t[1:].lower()
 
 
 def court_fields(court):
@@ -81,13 +85,15 @@ def build_prompt(court, mode="list"):
     p = (
         "You are tagging a visual design reference for a reference-organising tool used by designers.\n"
         "Return ONLY a JSON object, no prose, with keys:\n"
-        f'  "field": exactly one of {json.dumps(list(fd))}\n{fields}\n'
-        f'  "tags": array of {lo} to {hi} lowercase tags\n'
+        f'  "fields": array of 1 to 3 project types from {json.dumps(list(fd))}, best match first. '
+        'Include every type that clearly applies (e.g. a printed box is both "graphic" and "package")\n'
+        f'{fields}\n'
+        f'  "tags": array of {lo} to {hi} tags, each ONE word with a capital first letter (e.g. "Minimal")\n'
         '  "group_name": a short (1-3 word) English folder name this image would belong to\n'
     )
     if mode == "free":
         return p + ("Tags must be precise design vocabulary (form, material, light, colour, typography, mood), "
-                    "hyphenated, not generic words like 'design' or 'image'.\n")
+                    "a single word each (never two words or hyphens), not generic words like 'Design' or 'Image'.\n")
     lines = []
     for g in _groups(court):
         items = [f"{t['tag']}" + (f" ({t['def']})" if t.get("def") else "") for t in court["tags"] if t.get("group") == g]
@@ -188,14 +194,24 @@ def clean(answer, court, mode):
     tags, dropped = [], []
     for t in (answer.get("tags") or []):
         n = norm_tag(t)
-        if not n or n in tags:
+        if not n:
+            if str(t).strip():
+                dropped.append(str(t).strip())  # 두 단어 이상
+            continue
+        if n in tags:
             continue
         if mode == "list" and n not in allowed:
             dropped.append(n)
             continue
         tags.append(n)
-    field = str(answer.get("field") or "").strip().lower()
-    return {"field": field if field in court_fields(court) else None,
+    raw = answer.get("fields") or [answer.get("field")]
+    fields = []
+    for f in raw if isinstance(raw, list) else [raw]:
+        f = str(f or "").strip().lower()
+        if f in court_fields(court) and f not in fields:
+            fields.append(f)
+    fields = fields[:3]
+    return {"fields": fields, "field": fields[0] if fields else None,
             "tags": tags[: court.get("max_tags", 8)],
             "group_name": str(answer.get("group_name") or "").strip().lower(),
             "dropped": dropped}
@@ -213,7 +229,7 @@ def tag_image(data, court, provider, model, key, mode="list", size=512, retries=
             ans = parse_json(text)
             out = {"latency_ms": int((time.time() - t0) * 1000), "in_tokens": tin, "out_tokens": tout, "error": None}
             if ans is None:
-                out.update(field=None, tags=[], group_name="", dropped=[], error="JSON 아님: " + (text or "")[:200])
+                out.update(fields=[], field=None, tags=[], group_name="", dropped=[], error="JSON 아님: " + (text or "")[:200])
             else:
                 out.update(clean(ans, court, mode))
             return out
@@ -262,3 +278,16 @@ def cost_usd(model, in_tokens, out_tokens):
     if not p:
         return None
     return (in_tokens or 0) / 1e6 * p[0] + (out_tokens or 0) / 1e6 * p[1]
+
+
+if __name__ == "__main__":  # 태그 규칙 확인: python3 axia_tagger.py
+    assert norm_tag(" minimal ") == "Minimal" and norm_tag("GRID") == "Grid"
+    assert norm_tag("soft-light") == norm_tag("soft light") == norm_tag("a_b") == ""
+    c = court_from_tags_txt("# --- 빛\nDiffused | soft light\nsoft-light\nneon")
+    assert [t["tag"] for t in c["tags"]] == ["Diffused", "Neon"] and c["tags"][0]["def"] == "soft light"
+    out = clean({"field": "3d", "tags": ["minimal", "Soft light", "Neon", "neon", "Nope"]}, c | {"fields": {"3d": ""}}, "list")
+    assert out["tags"] == ["Neon"] and out["dropped"] == ["Minimal", "Soft light", "Nope"], out
+    two = clean({"fields": ["Graphic", "package", "nope", "graphic"], "tags": []}, c | {"fields": {"graphic": "", "package": ""}}, "list")
+    assert two["fields"] == ["graphic", "package"] and two["field"] == "graphic", two
+    assert clean({"field": "graphic", "tags": []}, c | {"fields": {"graphic": ""}}, "list")["fields"] == ["graphic"]
+    print("tag rules ok")

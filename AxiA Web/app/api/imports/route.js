@@ -1,9 +1,8 @@
 import { addUrls, readImports } from "@/lib/imports";
-import { withAnalysis } from "@/lib/axia";
 
-// GET -> every imported link, with the prototype's analysis attached. POST { urls } -> adds new ones, returns the full list.
+// GET -> every imported link. POST { urls } -> adds new ones, returns the full list.
 export async function GET() {
-  return Response.json(await withAnalysis(readImports()));
+  return Response.json(readImports());
 }
 
 export async function POST(request) {

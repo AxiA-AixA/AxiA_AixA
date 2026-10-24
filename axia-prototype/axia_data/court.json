@@ -1,491 +1,486 @@
 {
- "version": 1,
- "note": "tags.txt에서 시작",
+ "version": 2,
+ "note": "한 단어·첫 글자 대문자 태그 (tags.txt)",
  "min_tags": 5,
  "max_tags": 8,
  "tags": [
   {
-   "tag": "minimal",
+   "tag": "Minimal",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "maximal",
+   "tag": "Maximal",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "geometric",
+   "tag": "Geometric",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "organic",
+   "tag": "Organic",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "abstract",
+   "tag": "Abstract",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "figurative",
+   "tag": "Figurative",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "symmetrical",
+   "tag": "Symmetrical",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "asymmetrical",
+   "tag": "Asymmetrical",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "grid-based",
+   "tag": "Grid",
+   "group": "형태·구성",
+   "def": "grid-based layout"
+  },
+  {
+   "tag": "Modular",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "modular",
+   "tag": "Layered",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "layered",
+   "tag": "Whitespace",
+   "group": "형태·구성",
+   "def": "generous negative space"
+  },
+  {
+   "tag": "Dense",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "negative-space",
+   "tag": "Centered",
+   "group": "형태·구성",
+   "def": "centred composition"
+  },
+  {
+   "tag": "Offset",
+   "group": "형태·구성",
+   "def": "off-centre composition"
+  },
+  {
+   "tag": "Repetition",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "dense",
+   "tag": "Pattern",
    "group": "형태·구성",
    "def": ""
   },
   {
-   "tag": "centered-composition",
-   "group": "형태·구성",
-   "def": ""
-  },
-  {
-   "tag": "off-center-composition",
-   "group": "형태·구성",
-   "def": ""
-  },
-  {
-   "tag": "repetition",
-   "group": "형태·구성",
-   "def": ""
-  },
-  {
-   "tag": "pattern",
-   "group": "형태·구성",
-   "def": ""
-  },
-  {
-   "tag": "photorealistic",
+   "tag": "Photorealistic",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "glossy",
+   "tag": "Glossy",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "matte",
+   "tag": "Matte",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "metallic",
+   "tag": "Metallic",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "glass",
+   "tag": "Glass",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "translucent",
+   "tag": "Translucent",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "liquid",
+   "tag": "Liquid",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "soft-body",
+   "tag": "Squishy",
+   "group": "질감·재질",
+   "def": "soft-body, jelly-like material"
+  },
+  {
+   "tag": "Fabric",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "fabric",
+   "tag": "Plastic",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "plastic",
+   "tag": "Paper",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "paper",
+   "tag": "Grain",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "grain",
+   "tag": "Noise",
+   "group": "질감·재질",
+   "def": "digital noise texture"
+  },
+  {
+   "tag": "Iridescent",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "noise-texture",
+   "tag": "Chrome",
    "group": "질감·재질",
    "def": ""
   },
   {
-   "tag": "iridescent",
-   "group": "질감·재질",
-   "def": ""
+   "tag": "Diffused",
+   "group": "빛",
+   "def": "soft, diffused light"
   },
   {
-   "tag": "chrome",
-   "group": "질감·재질",
-   "def": ""
+   "tag": "Harsh",
+   "group": "빛",
+   "def": "hard light with crisp shadows"
   },
   {
-   "tag": "soft-light",
+   "tag": "Studio",
+   "group": "빛",
+   "def": "studio lighting"
+  },
+  {
+   "tag": "Rimlit",
+   "group": "빛",
+   "def": "rim light outlining the subject"
+  },
+  {
+   "tag": "Volumetric",
+   "group": "빛",
+   "def": "volumetric light, rays or haze"
+  },
+  {
+   "tag": "Neon",
    "group": "빛",
    "def": ""
   },
   {
-   "tag": "hard-light",
+   "tag": "Backlit",
    "group": "빛",
    "def": ""
   },
   {
-   "tag": "studio-lighting",
+   "tag": "Airy",
    "group": "빛",
-   "def": ""
+   "def": "high-key: bright, light tones"
   },
   {
-   "tag": "rim-light",
+   "tag": "Shadowy",
    "group": "빛",
-   "def": ""
+   "def": "low-key: mostly dark, strong shadows"
   },
   {
-   "tag": "volumetric-light",
-   "group": "빛",
-   "def": ""
-  },
-  {
-   "tag": "neon",
-   "group": "빛",
-   "def": ""
-  },
-  {
-   "tag": "backlit",
-   "group": "빛",
-   "def": ""
-  },
-  {
-   "tag": "high-key",
-   "group": "빛",
-   "def": ""
-  },
-  {
-   "tag": "low-key",
-   "group": "빛",
-   "def": ""
-  },
-  {
-   "tag": "monochrome",
+   "tag": "Monochrome",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "duotone",
+   "tag": "Duotone",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "pastel",
+   "tag": "Pastel",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "vivid",
+   "tag": "Vivid",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "muted",
+   "tag": "Muted",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "dark-palette",
+   "tag": "Dark",
+   "group": "색",
+   "def": "dark colour palette"
+  },
+  {
+   "tag": "Warm",
+   "group": "색",
+   "def": "warm colour palette"
+  },
+  {
+   "tag": "Cool",
+   "group": "색",
+   "def": "cool colour palette"
+  },
+  {
+   "tag": "Gradient",
    "group": "색",
    "def": ""
   },
   {
-   "tag": "warm-palette",
+   "tag": "Grayscale",
    "group": "색",
-   "def": ""
+   "def": "black and white, no colour"
   },
   {
-   "tag": "cool-palette",
-   "group": "색",
-   "def": ""
+   "tag": "Typographic",
+   "group": "타이포·레이아웃",
+   "def": "type is the main element"
   },
   {
-   "tag": "gradient",
-   "group": "색",
-   "def": ""
-  },
-  {
-   "tag": "black-and-white",
-   "group": "색",
-   "def": ""
-  },
-  {
-   "tag": "typography-led",
+   "tag": "Serif",
    "group": "타이포·레이아웃",
    "def": ""
   },
   {
-   "tag": "serif",
+   "tag": "Sans",
+   "group": "타이포·레이아웃",
+   "def": "sans-serif type"
+  },
+  {
+   "tag": "Display",
+   "group": "타이포·레이아웃",
+   "def": "display typeface, big expressive type"
+  },
+  {
+   "tag": "Kinetic",
+   "group": "타이포·레이아웃",
+   "def": "moving / animated type"
+  },
+  {
+   "tag": "Editorial",
+   "group": "타이포·레이아웃",
+   "def": "editorial layout"
+  },
+  {
+   "tag": "Poster",
    "group": "타이포·레이아웃",
    "def": ""
   },
   {
-   "tag": "sans-serif",
+   "tag": "Book",
+   "group": "타이포·레이아웃",
+   "def": "book spread"
+  },
+  {
+   "tag": "Magazine",
    "group": "타이포·레이아웃",
    "def": ""
   },
   {
-   "tag": "display-type",
+   "tag": "Swiss",
+   "group": "타이포·레이아웃",
+   "def": "Swiss / International style"
+  },
+  {
+   "tag": "Brutalist",
    "group": "타이포·레이아웃",
    "def": ""
   },
   {
-   "tag": "kinetic-type",
+   "tag": "Collage",
    "group": "타이포·레이아웃",
    "def": ""
   },
   {
-   "tag": "editorial-layout",
-   "group": "타이포·레이아웃",
-   "def": ""
+   "tag": "Render",
+   "group": "3D·CG",
+   "def": "3D render"
   },
   {
-   "tag": "poster",
-   "group": "타이포·레이아웃",
-   "def": ""
+   "tag": "Product",
+   "group": "3D·CG",
+   "def": "product render or product shot"
   },
   {
-   "tag": "book-spread",
-   "group": "타이포·레이아웃",
-   "def": ""
+   "tag": "Character",
+   "group": "3D·CG",
+   "def": "3D character"
   },
   {
-   "tag": "magazine",
-   "group": "타이포·레이아웃",
-   "def": ""
+   "tag": "Environment",
+   "group": "3D·CG",
+   "def": "3D environment or scene"
   },
   {
-   "tag": "swiss-style",
-   "group": "타이포·레이아웃",
-   "def": ""
-  },
-  {
-   "tag": "brutalist",
-   "group": "타이포·레이아웃",
-   "def": ""
-  },
-  {
-   "tag": "collage",
-   "group": "타이포·레이아웃",
-   "def": ""
-  },
-  {
-   "tag": "3d-render",
+   "tag": "Simulation",
    "group": "3D·CG",
    "def": ""
   },
   {
-   "tag": "product-render",
+   "tag": "Procedural",
    "group": "3D·CG",
    "def": ""
   },
   {
-   "tag": "abstract-3d",
+   "tag": "Lowpoly",
    "group": "3D·CG",
-   "def": ""
+   "def": "low-poly 3D"
   },
   {
-   "tag": "character-3d",
+   "tag": "Clay",
    "group": "3D·CG",
-   "def": ""
+   "def": "clay-style render"
   },
   {
-   "tag": "environment-3d",
-   "group": "3D·CG",
-   "def": ""
+   "tag": "Motion",
+   "group": "영상·모션",
+   "def": "motion graphics"
   },
   {
-   "tag": "simulation",
-   "group": "3D·CG",
-   "def": ""
+   "tag": "Titles",
+   "group": "영상·모션",
+   "def": "title sequence"
   },
   {
-   "tag": "procedural",
-   "group": "3D·CG",
-   "def": ""
+   "tag": "Loop",
+   "group": "영상·모션",
+   "def": "looping animation"
   },
   {
-   "tag": "low-poly",
-   "group": "3D·CG",
-   "def": ""
-  },
-  {
-   "tag": "clay-render",
-   "group": "3D·CG",
-   "def": ""
-  },
-  {
-   "tag": "motion-graphics",
+   "tag": "Transition",
    "group": "영상·모션",
    "def": ""
   },
   {
-   "tag": "title-sequence",
+   "tag": "Camerawork",
+   "group": "영상·모션",
+   "def": "notable camera move"
+  },
+  {
+   "tag": "Slowmo",
+   "group": "영상·모션",
+   "def": "slow motion"
+  },
+  {
+   "tag": "Stopmotion",
+   "group": "영상·모션",
+   "def": "stop-motion animation"
+  },
+  {
+   "tag": "Footage",
+   "group": "영상·모션",
+   "def": "live-action footage"
+  },
+  {
+   "tag": "Music",
+   "group": "영상·모션",
+   "def": "music video"
+  },
+  {
+   "tag": "Commercial",
    "group": "영상·모션",
    "def": ""
   },
   {
-   "tag": "loop-animation",
-   "group": "영상·모션",
-   "def": ""
+   "tag": "Generative",
+   "group": "AI 이미지",
+   "def": "AI-generated image"
   },
   {
-   "tag": "transition",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "camera-move",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "slow-motion",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "stop-motion",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "live-action",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "music-video",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "commercial",
-   "group": "영상·모션",
-   "def": ""
-  },
-  {
-   "tag": "ai-generated",
+   "tag": "Surreal",
    "group": "AI 이미지",
    "def": ""
   },
   {
-   "tag": "surreal",
+   "tag": "Dreamlike",
    "group": "AI 이미지",
    "def": ""
   },
   {
-   "tag": "dreamlike",
+   "tag": "Hyperreal",
    "group": "AI 이미지",
    "def": ""
   },
   {
-   "tag": "hyperreal",
+   "tag": "Uncanny",
    "group": "AI 이미지",
    "def": ""
   },
   {
-   "tag": "uncanny",
-   "group": "AI 이미지",
-   "def": ""
-  },
-  {
-   "tag": "calm",
+   "tag": "Calm",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "energetic",
+   "tag": "Energetic",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "playful",
+   "tag": "Playful",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "futuristic",
+   "tag": "Futuristic",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "retro",
+   "tag": "Retro",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "nostalgic",
+   "tag": "Nostalgic",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "luxurious",
+   "tag": "Luxurious",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "industrial",
+   "tag": "Industrial",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "natural",
+   "tag": "Natural",
    "group": "분위기",
    "def": ""
   },
   {
-   "tag": "clinical",
+   "tag": "Clinical",
    "group": "분위기",
    "def": ""
   }
@@ -499,7 +494,7 @@
   "package": "packaging design: boxes, bottles, labels, bags",
   "video": "still from film / motion / animation",
   "ui_ux": "app screen, website, interface",
-  "spatial": "interior, retail, exhibition, stage or set design",
+  "architecture": "architecture, buildings, interiors, retail, exhibition, stage or set design",
   "editorial": "editorial / book / magazine / layout design",
   "ai_image": "image made with a generative AI model"
  }

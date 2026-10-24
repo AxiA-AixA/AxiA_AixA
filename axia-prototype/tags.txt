@@ -1,107 +1,107 @@
 # Axia 태그 목록 (태그 목록 방식에서 AI가 여기서만 고름). 팀에서 자유롭게 고쳐도 돼요.
+# 규칙: 태그는 한 단어, 첫 글자만 대문자. "태그 | 뜻" 으로 뜻을 적으면 AI가 그 뜻대로 골라요.
 # --- 형태·구성
-minimal
-maximal
-geometric
-organic
-abstract
-figurative
-symmetrical
-asymmetrical
-grid-based
-modular
-layered
-negative-space
-dense
-centered-composition
-off-center-composition
-repetition
-pattern
+Minimal
+Maximal
+Geometric
+Organic
+Abstract
+Figurative
+Symmetrical
+Asymmetrical
+Grid | grid-based layout
+Modular
+Layered
+Whitespace | generous negative space
+Dense
+Centered | centred composition
+Offset | off-centre composition
+Repetition
+Pattern
 # --- 질감·재질
-photorealistic
-glossy
-matte
-metallic
-glass
-translucent
-liquid
-soft-body
-fabric
-plastic
-paper
-grain
-noise-texture
-iridescent
-chrome
+Photorealistic
+Glossy
+Matte
+Metallic
+Glass
+Translucent
+Liquid
+Squishy | soft-body, jelly-like material
+Fabric
+Plastic
+Paper
+Grain
+Noise | digital noise texture
+Iridescent
+Chrome
 # --- 빛
-soft-light
-hard-light
-studio-lighting
-rim-light
-volumetric-light
-neon
-backlit
-high-key
-low-key
+Diffused | soft, diffused light
+Harsh | hard light with crisp shadows
+Studio | studio lighting
+Rimlit | rim light outlining the subject
+Volumetric | volumetric light, rays or haze
+Neon
+Backlit
+Airy | high-key: bright, light tones
+Shadowy | low-key: mostly dark, strong shadows
 # --- 색
-monochrome
-duotone
-pastel
-vivid
-muted
-dark-palette
-warm-palette
-cool-palette
-gradient
-black-and-white
+Monochrome
+Duotone
+Pastel
+Vivid
+Muted
+Dark | dark colour palette
+Warm | warm colour palette
+Cool | cool colour palette
+Gradient
+Grayscale | black and white, no colour
 # --- 타이포·레이아웃
-typography-led
-serif
-sans-serif
-display-type
-kinetic-type
-editorial-layout
-poster
-book-spread
-magazine
-swiss-style
-brutalist
-collage
+Typographic | type is the main element
+Serif
+Sans | sans-serif type
+Display | display typeface, big expressive type
+Kinetic | moving / animated type
+Editorial | editorial layout
+Poster
+Book | book spread
+Magazine
+Swiss | Swiss / International style
+Brutalist
+Collage
 # --- 3D·CG
-3d-render
-product-render
-abstract-3d
-character-3d
-environment-3d
-simulation
-procedural
-low-poly
-clay-render
+Render | 3D render
+Product | product render or product shot
+Character | 3D character
+Environment | 3D environment or scene
+Simulation
+Procedural
+Lowpoly | low-poly 3D
+Clay | clay-style render
 # --- 영상·모션
-motion-graphics
-title-sequence
-loop-animation
-transition
-camera-move
-slow-motion
-stop-motion
-live-action
-music-video
-commercial
+Motion | motion graphics
+Titles | title sequence
+Loop | looping animation
+Transition
+Camerawork | notable camera move
+Slowmo | slow motion
+Stopmotion | stop-motion animation
+Footage | live-action footage
+Music | music video
+Commercial
 # --- AI 이미지
-ai-generated
-surreal
-dreamlike
-hyperreal
-uncanny
+Generative | AI-generated image
+Surreal
+Dreamlike
+Hyperreal
+Uncanny
 # --- 분위기
-calm
-energetic
-playful
-futuristic
-retro
-nostalgic
-luxurious
-industrial
-natural
-clinical
+Calm
+Energetic
+Playful
+Futuristic
+Retro
+Nostalgic
+Luxurious
+Industrial
+Natural
+Clinical

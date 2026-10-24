@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const api = (p, body) => fetch(p, body === undefined ? {} : {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)}).then(r => r.json());
-const FIELD_KO = {"3d": "3D", graphic: "그래픽", typography: "타이포그래피", painting: "회화", photo: "사진", package: "패키지", video: "영상", ui_ux: "UI/UX", spatial: "공간", editorial: "편집", ai_image: "AI 이미지"};
+const FIELD_KO = {"3d": "3D", graphic: "그래픽", typography: "타이포그래피", painting: "회화", photo: "사진", package: "패키지", video: "영상", ui_ux: "UI/UX", architecture: "건축·공간", editorial: "편집", ai_image: "AI 이미지"};
 const fk = f => FIELD_KO[f] || f || "미분류";
 let L = {items: []}, view = "grid", filt = {state: "all", field: null, src: null, tag: null, q: ""}, lastSig = "";
 
@@ -16,20 +16,21 @@ async function load() {
 }
 
 function tagsOf(it) { return [...(it.user_tags || []), ...(it.tags || [])]; }
+function fieldsOf(it) { return it.fields?.length ? it.fields : it.field ? [it.field] : []; }
 function pass(it, skip) {
   if (skip !== "state") {
     if (filt.state === "queued" && !["queued", "retry", "new"].includes(it.status)) return false;
     if (filt.state === "failed" && it.status !== "failed") return false;
   }
-  if (skip !== "field" && filt.field && (it.field || "미분류") !== filt.field) return false;
+  if (skip !== "field" && filt.field && !(fieldsOf(it).length ? fieldsOf(it) : ["미분류"]).includes(filt.field)) return false;
   if (skip !== "src" && filt.src && it.source !== filt.src) return false;
   if (skip !== "tag" && filt.tag && !tagsOf(it).includes(filt.tag)) return false;
-  if (filt.q) { const q = filt.q.toLowerCase(); if (!(tagsOf(it).join(" ") + " " + (it.title || "") + " " + (it.group_name || "") + " " + (it.field || "")).toLowerCase().includes(q)) return false; }
+  if (filt.q) { const q = filt.q.toLowerCase(); if (!(tagsOf(it).join(" ") + " " + (it.title || "") + " " + (it.group_name || "") + " " + fieldsOf(it).join(" ")).toLowerCase().includes(q)) return false; }
   return true;
 }
 function counts(key, skip) {
   const c = {};
-  L.items.filter(i => pass(i, skip)).forEach(i => { const k = key(i); c[k] = (c[k] || 0) + 1; });
+  L.items.filter(i => pass(i, skip)).forEach(i => [].concat(key(i)).forEach(k => c[k] = (c[k] || 0) + 1));
   return Object.entries(c).sort((a, b) => b[1] - a[1]);
 }
 function nav(el, list, cur, set, label = x => x) {
@@ -42,7 +43,7 @@ function draw() {
   const q = L.items.filter(i => ["queued", "retry", "new"].includes(i.status)).length, f = L.items.filter(i => i.status === "failed").length;
   $("#navstate").innerHTML = [["all", "전체", L.items.length], ["queued", "분석 대기", q], ["failed", "분석 실패", f]].map(([k, l, n]) => `<a class="${filt.state === k ? "on" : ""}" data-v="${k}">${l}<span>${n}</span></a>`).join("");
   $("#navstate").querySelectorAll("a").forEach(a => a.onclick = () => { filt.state = a.dataset.v; draw(); });
-  nav($("#navfield"), counts(i => i.field || "미분류", "field"), filt.field, v => filt.field = v, fk);
+  nav($("#navfield"), counts(i => fieldsOf(i).length ? fieldsOf(i) : "미분류", "field"), filt.field, v => filt.field = v, fk);
   nav($("#navsrc"), counts(i => i.source || "기타", "src"), filt.src, v => filt.src = v);
   const tc = {};
   items.forEach(i => tagsOf(i).forEach(t => tc[t] = (tc[t] || 0) + 1));
@@ -57,15 +58,15 @@ function draw() {
   if (view === "grid") {
     $("#out").innerHTML = `<div class="grid">${items.map(card).join("")}</div>`;
   } else {
-    const key = view === "group" ? (i => i.group_name || "(그룹 없음)") : (i => fk(i.field));
+    const key = view === "group" ? (i => i.group_name || "(그룹 없음)") : (i => fieldsOf(i).length ? fieldsOf(i).map(fk) : fk(null));
     const g = {};
-    items.forEach(i => (g[key(i)] = g[key(i)] || []).push(i));
+    items.forEach(i => [].concat(key(i)).forEach(k => (g[k] = g[k] || []).push(i)));  // 분야가 여럿이면 각 분야에 다 나와요
     $("#out").innerHTML = Object.entries(g).sort((a, b) => b[1].length - a[1].length).map(([k, arr]) => `<div class="group"><h3>${esc(k)} <span>${arr.length}</span></h3><div class="groupgrid">${arr.map(i => `<img loading="lazy" src="/img/${i.file}" data-id="${i.id}">`).join("")}</div></div>`).join("");
   }
   document.querySelectorAll("[data-id]").forEach(el => el.onclick = () => openDetail(el.dataset.id));
 }
 function card(i) {
-  const badge = i.status === "tagged" ? `<span class="badge">${esc(fk(i.field))}</span>` : i.status === "failed" ? '<span class="badge f">실패</span>' : '<span class="badge q">분석 중</span>';
+  const badge = i.status === "tagged" ? fieldsOf(i).map(f => `<span class="badge">${esc(fk(f))}</span>`).join("") : i.status === "failed" ? '<span class="badge f">실패</span>' : '<span class="badge q">분석 중</span>';
   return `<div class="card" data-id="${i.id}"><img loading="lazy" src="/img/${i.file}"><div class="meta">${badge}<span class="src">${esc(i.source || "")}</span><div class="tags">${esc(tagsOf(i).slice(0, 6).join(" · "))}</div></div></div>`;
 }
 
@@ -73,12 +74,12 @@ function openDetail(id) {
   const i = L.items.find(x => x.id === id);
   if (!i) return;
   const d = $("#detail");
-  const fields = [...new Set([...(L.fields || []), i.field].filter(Boolean))];
+  const fields = [...new Set([...(L.fields || []), ...fieldsOf(i)])];
   d.innerHTML = `<div class="dlg"><div class="pic"><img src="/img/${i.file}"></div><div class="side">
     <div class="row" style="justify-content:space-between"><b>${esc(i.title || "제목 없음")}</b><button class="ghost" id="dclose">닫기</button></div>
     ${i.page_url ? `<p class="tags"><a href="${esc(i.page_url)}" target="_blank" rel="noopener">원본 열기 (${esc(i.source)})</a></p>` : ""}
     ${i.status === "failed" ? `<div class="note">분석 실패: ${esc(i.error || "")}</div>` : ""}
-    <label>분야</label><select id="dfield">${fields.map(f => `<option value="${esc(f)}" ${f === i.field ? "selected" : ""}>${esc(fk(f))}</option>`).join("")}</select>
+    <label>분야 (여러 개 가능, 최대 3개)</label><div class="row">${fields.map(f => `<label class="row" style="margin:0;font-size:13px;color:var(--fg)"><input type="checkbox" data-f="${esc(f)}" style="width:auto" ${fieldsOf(i).includes(f) ? "checked" : ""}>${esc(fk(f))}</label>`).join("")}</div>
     <label>AI 태그</label><div class="chips">${(i.tags || []).map(t => `<span data-t="${esc(t)}">${esc(t)}</span>`).join("") || '<span class="tags">없음</span>'}</div>
     <label>내 태그 (쉼표로 구분)</label><input id="dtags" value="${esc((i.user_tags || []).join(", "))}">
     <label>그룹</label><input id="dgroup" value="${esc(i.group_name || "")}">
@@ -88,7 +89,7 @@ function openDetail(id) {
   d.showModal();
   $("#dclose").onclick = () => d.close();
   d.querySelectorAll(".chips [data-t]").forEach(s => s.onclick = () => { filt.tag = s.dataset.t; d.close(); draw(); });
-  $("#dsave").onclick = async () => { await api("/api/item", {id, field: $("#dfield").value, user_tags: $("#dtags").value.split(",").map(s => s.trim()).filter(Boolean), group_name: $("#dgroup").value}); d.close(); lastSig = ""; load(); };
+  $("#dsave").onclick = async () => { await api("/api/item", {id, fields: [...d.querySelectorAll("[data-f]:checked")].map(x => x.dataset.f), user_tags: $("#dtags").value.split(",").map(s => s.trim()).filter(Boolean), group_name: $("#dgroup").value}); d.close(); lastSig = ""; load(); };
   $("#dretag").onclick = async () => { await api("/api/retag", {ids: [id]}); d.close(); lastSig = ""; };
   $("#ddel").onclick = async () => { if (confirm("이 레퍼런스를 Axia에서 지울까요?")) { await api("/api/item", {id, delete: true}); d.close(); lastSig = ""; } };
 }

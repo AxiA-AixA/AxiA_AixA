@@ -17,23 +17,41 @@ const TUNING = [
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
 
-// What the hubs are: site, or the AI analysis (field / group name) from axia-prototype.
-const GROUP_BY = {
-  Platform: (e) => hostOf(e.url),
-  Field: (e) => e.field || "untagged",
-  Group: (e) => e.group_name || "untagged",
+// Project types (axia-prototype's "field" codes) as shown on the graph.
+const FIELD_NAMES = {
+  "3d": "3D", graphic: "Graphic", photo: "Photo", architecture: "Architecture", typography: "Typography",
+  painting: "Painting", package: "Package", video: "Video", ui_ux: "UI/UX", editorial: "Editorial", ai_image: "AI Image",
 };
+const fieldNames = (e) => (e.fields.length ? e.fields.map((f) => FIELD_NAMES[f] ?? f) : [e.status === "tagged" ? "Other" : "Analysing"]);
+
+// What the hubs are. An image links to every hub it belongs to, so one that is e.g. both
+// Graphic and Package sits between those two. Type (default) = project types, Tags = style tags.
+const GROUP_BY = {
+  Type: fieldNames,
+  Tags: (e) => (e.tags.length ? e.tags : ["Untagged"]),
+  Group: (e) => [e.group_name || "untagged"],
+  Platform: (e) => [e.url ? hostOf(e.url) : "file"],
+};
+// Searched tags act as filters: an image shows only if it has every one of them.
+const passes = (e, selected) => selected.every((t) => e.tags.includes(t));
 
 export default function Graph() {
   const canvasRef = useRef(null);
   const fileRef = useRef(null);
-  const g = useRef({ nodes: [], byId: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false, hubs: new Map() });
+  const g = useRef({ nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
   const [text, setText] = useState("");
   const [stats, setStats] = useState({ links: 0, thumbs: 0 });
+  const [online, setOnline] = useState(true);
+  const [note, setNote] = useState("");
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
-  const [groupBy, setGroupBy] = useState("Platform");
+  const [groupBy, setGroupBy] = useState("Type");
   const groupRef = useRef(groupBy);
+  const [tags, setTags] = useState([]); // [[tag, count]] among shown images, for suggestions
+  const [query, setQuery] = useState("");
+  const [selected, setSel] = useState([]);
+  const selRef = useRef(selected);
+  const [hits, setHits] = useState(0);
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
 
@@ -47,12 +65,16 @@ export default function Graph() {
     try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
   }
 
-  // Saved imports come back when the page mounts, so leaving and returning keeps them.
+  // The graph shows axia-prototype's library only. Polled, so new analysis results move in live.
   useEffect(() => {
-    fetch("/api/imports").then((r) => r.json()).then(show).catch(() => {});
+    const load = () => fetch("/api/library").then((r) => r.json()).then((d) => { setOnline(d.online); show(d.items); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
   }, []);
 
-  // New links are saved server-side first, then drawn.
+  // New links are saved, then their thumbnails fetched; the server hands each one to the
+  // prototype, and it shows up here once it is in the library.
   async function addLinks(raw) {
     const urls = extractLinks(raw);
     if (!urls.length) return;
@@ -61,45 +83,82 @@ export default function Graph() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ urls }),
     }).then((r) => r.json());
-    show(saved);
+    const todo = saved.filter((e) => !e.fetched).map((e) => e.url);
+    setNote(`${urls.length} links added · fetching ${todo.length} thumbnails for analysis`);
+    await loadPreviews(todo);
+    setNote(`${urls.length} links sent for analysis`);
   }
 
-  // Draw entries as dots hanging off one hub per site/field/group; fetch thumbnails not cached yet.
-  function show(entries) {
+  // Add new library items; for known ones pick up new analysis results.
+  function show(items) {
     const s = g.current;
-    const fresh = entries.filter((e) => !s.byId.has(e.url));
-    for (const e of fresh) {
-      const node = addNode({ id: e.url, hub: false, entry: e, parent: hubFor(e), title: e.title });
-      if (e.image) loadImage(node, e.image);
+    let changed = false;
+    for (const e of items) {
+      const n = s.byId.get(e.id);
+      if (!n) {
+        const node = { id: e.id, hub: false, entry: e };
+        s.byId.set(e.id, node);
+        loadImage(node, e.image);
+        changed = true;
+      } else {
+        if (n.entry.tags.join() !== e.tags.join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
+        n.entry = e;
+      }
     }
-    setStats((v) => ({ ...v, links: v.links + fresh.length }));
-    loadPreviews(fresh.filter((e) => !e.fetched).map((e) => e.url));
+    if (changed) rebuild(0.3); // background updates nudge the layout, not reshuffle it
+    setStats((v) => ({ ...v, links: s.byId.size }));
   }
 
-  function hubFor(e) {
-    const s = g.current, key = GROUP_BY[groupRef.current](e);
-    if (!s.hubs.has(key)) s.hubs.set(key, addNode({ id: key, hub: true }));
+  // With tags searched, the Tags view shows only those tags' hubs.
+  function keysOf(e) {
+    const sel = selRef.current;
+    return groupRef.current === "Tags" && sel.length ? sel : GROUP_BY[groupRef.current](e);
+  }
+
+  function place(n, near) {
+    const p = near ?? { x: 0, y: 0 };
+    return Object.assign(n, { x: p.x + (Math.random() - 0.5) * 80, y: p.y + (Math.random() - 0.5) * 80, vx: 0, vy: 0 });
+  }
+
+  // Hubs are reused across rebuilds so they keep their place.
+  function hubFor(key) {
+    const s = g.current;
+    if (!s.hubs.has(key)) {
+      const h = s.hubCache.get(key) ?? place({ id: key, hub: true });
+      s.hubCache.set(key, h);
+      s.hubs.set(key, h);
+      s.nodes.push(h);
+    }
     return s.hubs.get(key);
   }
 
-  // Swap the hubs; dots keep their place and spring over to the new ones.
-  function regroup(by) {
-    const s = g.current;
-    groupRef.current = by;
-    setGroupBy(by);
-    s.nodes = s.nodes.filter((n) => !n.hub);
+  // Recompute what is shown: filter by searched tags, then link each image to its hubs.
+  function rebuild(heat = 1) {
+    const s = g.current, sel = selRef.current;
+    const items = [...s.byId.values()].filter((n) => passes(n.entry, sel));
+    s.nodes = [...items];
     s.hubs.clear();
-    for (const n of s.nodes) n.parent = hubFor(n.entry);
+    for (const n of items) {
+      n.parents = keysOf(n.entry).map(hubFor);
+      if (n.x == null) place(n, n.parents[0]);
+    }
     s.userCam = false;
+    s.heat = Math.max(s.heat ?? 0, heat); // let the layout move again
+    const count = {}; // suggest tags of the shown images, so each pick narrows the result
+    for (const n of items) for (const t of n.entry.tags) if (!sel.includes(t)) count[t] = (count[t] ?? 0) + 1;
+    setTags(Object.entries(count).sort((a, b) => b[1] - a[1]));
+    setHits(items.length);
   }
+  function regroup(by) { groupRef.current = by; setGroupBy(by); rebuild(); }
+  function setSelected(next) { selRef.current = next; setSel(next); rebuild(); }
 
-  function addNode(n) {
-    const s = g.current;
-    const p = n.parent ?? { x: 0, y: 0 };
-    Object.assign(n, { x: p.x + (Math.random() - 0.5) * 80, y: p.y + (Math.random() - 0.5) * 80, vx: 0, vy: 0 });
-    s.nodes.push(n);
-    if (!n.hub) s.byId.set(n.id, n);
-    return n;
+  // Exact tag (any case), else the most used tag containing the text ("lit" -> Backlit).
+  function addTag(raw) {
+    const q = raw.trim().toLowerCase();
+    const t = tags.find(([t]) => t.toLowerCase() === q)?.[0] ?? tags.find(([t]) => q && t.toLowerCase().includes(q))?.[0];
+    if (!t) return;
+    setSelected([...selRef.current, t]);
+    setQuery("");
   }
 
   function loadImage(node, src) {
@@ -111,13 +170,7 @@ export default function Graph() {
   async function loadPreviews(urls) {
     const queue = [...urls];
     const worker = async () => {
-      while (queue.length) {
-        const url = queue.shift();
-        const res = await fetch(`/api/preview?url=${encodeURIComponent(url)}`).then((r) => r.json()).catch(() => ({}));
-        const node = g.current.byId.get(url);
-        node.title = res.title;
-        if (res.image) loadImage(node, res.image);
-      }
+      while (queue.length) await fetch(`/api/preview?url=${encodeURIComponent(queue.shift())}`).catch(() => {});
     };
     await Promise.all(Array.from({ length: 6 }, worker));
   }
@@ -147,7 +200,10 @@ export default function Graph() {
       y: (n.y - s.cam.y) * s.cam.k + canvas.clientHeight / 2,
     });
 
+    // The layout cools down and stops once settled; rebuild() heats it up again.
     function step() {
+      if (!(s.heat > 0.02)) return;
+      s.heat *= 0.99;
       const { nodes } = s;
       // ponytail: O(n²) repulsion, fine to ~1,000 dots; use a quadtree (Barnes–Hut) beyond that.
       for (let i = 0; i < nodes.length; i++) {
@@ -159,11 +215,11 @@ export default function Graph() {
           const f = (a.hub && b.hub ? 6000 : tuneRef.current.spread) / d2;
           a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
         }
-        if (a.parent) { // spring to its hub
-          const dx = a.parent.x - a.x, dy = a.parent.y - a.y;
-          const d = Math.hypot(dx, dy) || 1, f = (d - 50) * 0.02;
+        for (const p of a.parents ?? []) { // spring to each of its hubs, shared out
+          const dx = p.x - a.x, dy = p.y - a.y;
+          const d = Math.hypot(dx, dy) || 1, f = ((d - 50) * 0.02) / a.parents.length;
           a.vx += (dx / d) * f; a.vy += (dy / d) * f;
-          a.parent.vx -= (dx / d) * f * 0.1; a.parent.vy -= (dy / d) * f * 0.1;
+          p.vx -= (dx / d) * f * 0.1; p.vy -= (dy / d) * f * 0.1;
         }
         a.vx -= a.x * 0.002; a.vy -= a.y * 0.002; // gravity to centre
       }
@@ -199,11 +255,14 @@ export default function Graph() {
       const pos = new Map(s.nodes.map((n) => [n, toScreen(n)]));
       ctx.strokeStyle = color("--grey");
       ctx.lineWidth = 1;
-      for (const n of s.nodes) {
-        if (!n.parent) continue;
-        const a = pos.get(n), b = pos.get(n.parent);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
+      const edges = (n) => {
+        for (const p of n.parents ?? []) {
+          const a = pos.get(n), b = pos.get(p);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      };
+      for (const n of s.nodes) edges(n);
+      if (s.hover) { ctx.strokeStyle = color("--black"); edges(s.hover); } // which tags the hovered image spans
 
       // Find the hovered dot, then draw dots with a fisheye bump near the cursor.
       const t = tuneRef.current, k = s.cam.k;
@@ -259,11 +318,11 @@ export default function Graph() {
         ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fill();
         ctx.fillText(n.id, p.x, p.y - 14);
       }
-      if (s.hover?.title) {
+      if (s.hover?.entry.title) {
         const p = pos.get(s.hover);
         ctx.fillStyle = color("--black");
         ctx.font = `500 14px ${color("--font")}`;
-        ctx.fillText(s.hover.title.slice(0, 60), p.x, p.y + Math.max(t.hover, t.dot * k) + 20);
+        ctx.fillText(s.hover.entry.title.slice(0, 60), p.x, p.y + Math.max(t.hover, t.dot * k) + 20);
       }
       if (s.hover?.entry.tags?.length) {
         const p = pos.get(s.hover);
@@ -296,7 +355,7 @@ export default function Graph() {
       s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
     };
     const onUp = () => {
-      if (drag && !drag.moved && s.hover) window.open(s.hover.id, "_blank", "noopener");
+      if (drag && !drag.moved && s.hover?.entry.url) window.open(s.hover.entry.url, "_blank", "noopener");
       drag = null;
     };
     const onLeave = () => { s.mouse = null; drag = null; };
@@ -324,6 +383,25 @@ export default function Graph() {
       onDrop={(e) => { e.preventDefault(); readFiles(e.dataTransfer.files); }}
     >
       <canvas ref={canvasRef} className="graph" />
+      <div className="tag-search">
+        <form onSubmit={(e) => { e.preventDefault(); addTag(query); }}>
+          <input list="axia-tags" value={query} placeholder="Search tags (e.g. Chrome, Diffused)" aria-label="Search tags"
+            onChange={(e) => (tags.some(([t]) => t === e.target.value) ? addTag(e.target.value) : setQuery(e.target.value))} />
+          <datalist id="axia-tags">
+            {tags.map(([t, n]) => <option key={t} value={t}>{n}</option>)}
+          </datalist>
+          {selected.length > 0 && <span>{hits} images</span>}
+        </form>
+        {selected.length > 0 && (
+          <div className="tag-chips">
+            {selected.map((t) => (
+              <button key={t} type="button" className="btn primary" aria-label={`Remove ${t}`}
+                onClick={() => setSelected(selected.filter((x) => x !== t))}>{t} ×</button>
+            ))}
+            <button type="button" className="btn" onClick={() => setSelected([])}>Clear</button>
+          </div>
+        )}
+      </div>
       <details className="tuning" open>
         <summary>Tuning · zoom {zoom.toFixed(2)}</summary>
         <div className="tuning-actions">
@@ -366,7 +444,7 @@ export default function Graph() {
           />
           <div className="composer-bar">
             <button type="button" className="btn" onClick={() => fileRef.current.click()} aria-label="Upload a file">+ File</button>
-            <span>{empty ? "Instagram, Pinterest, Are.na exports work" : `${stats.links} links · ${stats.thumbs} thumbnails`}</span>
+            <span>{!online ? "AI analyser is off: open axia-prototype/Axia-실행-Mac.command" : note || (empty ? "Instagram, Pinterest, Are.na exports work" : `${stats.links} references · ${tags.length} tags`)}</span>
             <button type="submit" className="btn primary">Import ↵</button>
           </div>
         </form>

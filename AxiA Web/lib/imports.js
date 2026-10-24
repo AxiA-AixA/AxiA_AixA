@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Imported links live in data/imports.json; their thumbnails are downloaded into
-// public/samples/imported/ so they show up on /samples and survive CDN URL expiry.
+// public/samples/imported/ (survives CDN URL expiry) and then sent to axia-prototype for analysis.
 // Read-modify-write is fully synchronous, so concurrent requests can't interleave.
 const root = /*turbopackIgnore: true*/ process.cwd();
 const FILE = path.join(root, "data/imports.json");

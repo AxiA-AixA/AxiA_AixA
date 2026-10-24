@@ -37,7 +37,7 @@ DEFAULT_SETTINGS = {
     "size": 512,
     "auto_tag": True,
 }
-DEFAULT_FIELDS = ["3d", "graphic", "typography", "painting", "photo", "package", "video", "ui_ux", "spatial", "editorial", "ai_image"]
+DEFAULT_FIELDS = ["3d", "graphic", "typography", "painting", "photo", "package", "video", "ui_ux", "architecture", "editorial", "ai_image"]
 
 
 # ---------- storage ----------
@@ -117,7 +117,7 @@ def add_image(data, *, image_url="", page_url="", title="", source=""):
         (IMG / f"{sha}{ext}").write_bytes(data)
         it = {"id": sha, "file": f"{sha}{ext}", "image_url": image_url, "page_url": page_url, "pages": [page_url] if page_url else [],
               "title": title[:200], "source": source or platform_of(page_url or image_url), "added": time.strftime("%Y-%m-%d %H:%M:%S"),
-              "status": "queued" if settings()["auto_tag"] else "new", "field": None, "tags": [], "group_name": "", "user_tags": []}
+              "status": "queued" if settings()["auto_tag"] else "new", "fields": [], "field": None, "tags": [], "group_name": "", "user_tags": []}
         lib["items"][sha] = it
         save_library(lib)
     if it["status"] == "queued":
@@ -211,7 +211,7 @@ def tag_worker():
                 if res.get("error"):
                     it.update(status="failed", error=str(res["error"])[:300])
                 else:
-                    it.update(status="tagged", field=res["field"], tags=res["tags"], group_name=res["group_name"],
+                    it.update(status="tagged", fields=res["fields"], field=res["field"], tags=res["tags"], group_name=res["group_name"],
                               model=res.get("model"), tagged=time.strftime("%Y-%m-%d %H:%M:%S"), error=None,
                               tokens=[res.get("in_tokens"), res.get("out_tokens")], latency_ms=res.get("latency_ms"))
                 save_library(lib)
@@ -366,9 +366,12 @@ class H(BaseHTTPRequestHandler):
                         (IMG / it["file"]).unlink(missing_ok=True)
                         del lib["items"][data["id"]]
                     else:
-                        for k in ("field", "user_tags", "group_name"):
+                        for k in ("user_tags", "group_name"):
                             if k in data:
                                 it[k] = data[k]
+                        if "fields" in data:  # 분야 여러 개; field는 첫 번째 (예전 화면·데이터 호환)
+                            it["fields"] = [f for f in data["fields"] if f][:3]
+                            it["field"] = it["fields"][0] if it["fields"] else None
                     save_library(lib)
                 return self.send({"ok": True})
         except Exception as e:

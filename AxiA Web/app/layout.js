@@ -17,8 +17,7 @@ export default function RootLayout({ children }) {
       <body>
         <nav className="nav">
           <Link href="/" className="logo">AxiA</Link>
-          <Link href="/library" className="btn">Library</Link>
-          <Link href="/samples" className="btn">Samples</Link>
+          <Link href="/reference" className="btn">Reference</Link>
           <Link href="/lab" className="btn">Lab</Link>
           <Link href="#" className="btn primary">Sign In</Link>
           <Link href="/how" className="btn" aria-label="How AxiA works">?</Link>

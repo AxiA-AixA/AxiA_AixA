@@ -146,5 +146,18 @@ h2 { font-size: var(--text-small); margin-bottom: 8px; }
 }
 .figure { display: block; width: 100%; height: auto; margin-top: 48px; padding: 24px 0; border-top: 1px solid var(--grey); font-family: var(--font); }
 
-/* /library: the axia-prototype app, full screen under the header */
-.library { position: fixed; top: 51px; left: 0; width: 100%; height: calc(100% - 51px); border: 0; }
+/* /reference: the axia-prototype app, full screen under the header */
+.reference { position: fixed; top: 51px; left: 0; width: 100%; height: calc(100% - 51px); border: 0; }
+
+/* Home: tag search, top centre over the graph; chosen tags show as chips below */
+.tag-search {
+  position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: min(480px, calc(100% - 32px)); padding: 8px; background: var(--grey);
+}
+.tag-search form { display: flex; align-items: center; gap: 4px; }
+.tag-search input {
+  flex: 1; min-width: 0; height: var(--button-h); padding: 0 12px; border: 0;
+  background: var(--white); color: var(--black); font: inherit; letter-spacing: inherit;
+}
+.tag-search span { font-size: 12px; white-space: nowrap; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
