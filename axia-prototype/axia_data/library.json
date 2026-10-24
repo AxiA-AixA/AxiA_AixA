@@ -1,0 +1,139 @@
+{
+ "items": {
+  "1bac8a8084871712": {
+   "id": "1bac8a8084871712",
+   "file": "1bac8a8084871712.png",
+   "image_url": "https://i.pinimg.com/originals/81/f8/a0/81f8a08ce9ec1d9b92b1cbfbf5665768.png",
+   "page_url": "https://uk.pinterest.com/pin/895371969706666758/",
+   "pages": [
+    "https://uk.pinterest.com/pin/895371969706666758/"
+   ],
+   "title": "포함된 이미지: ",
+   "source": "uk.pinterest.com",
+   "added": "2026-10-21 21:20:09",
+   "status": "tagged",
+   "field": "3d",
+   "tags": [
+    "3d-render",
+    "minimal",
+    "geometric",
+    "grid-based",
+    "modular",
+    "layered",
+    "glass",
+    "translucent"
+   ],
+   "group_name": "3d render",
+   "user_tags": [],
+   "model": "gemini-3.5-flash-lite",
+   "tagged": "2026-10-21 21:20:12",
+   "error": null,
+   "tokens": [
+    1742,
+    79
+   ],
+   "latency_ms": 1794
+  },
+  "7fb0ce50bf67ae28": {
+   "id": "7fb0ce50bf67ae28",
+   "file": "7fb0ce50bf67ae28.jpg",
+   "image_url": "https://i.pinimg.com/736x/91/b2/66/91b26600a74de039a2251d7767ab814d.jpg",
+   "page_url": "https://uk.pinterest.com/pin/4597471614098096000/",
+   "pages": [
+    "https://uk.pinterest.com/pin/4597471614098096000/"
+   ],
+   "title": "Pinterest",
+   "source": "uk.pinterest.com",
+   "added": "2026-10-21 21:21:29",
+   "status": "tagged",
+   "field": "package",
+   "tags": [
+    "minimal",
+    "centered-composition",
+    "matte",
+    "soft-light",
+    "gradient",
+    "sans-serif",
+    "product-render",
+    "clinical"
+   ],
+   "group_name": "package",
+   "user_tags": [],
+   "model": "gemini-3.5-flash-lite",
+   "tagged": "2026-10-21 21:22:10",
+   "error": null,
+   "tokens": [
+    1717,
+    78
+   ],
+   "latency_ms": 40169
+  },
+  "48ec1d495507f9f8": {
+   "id": "48ec1d495507f9f8",
+   "file": "48ec1d495507f9f8.jpg",
+   "image_url": "https://i.pinimg.com/736x/42/6d/ba/426dba9d54ee9e2e15117320fbdd7942.jpg",
+   "page_url": "https://uk.pinterest.com/pin/627900373086542218/",
+   "pages": [
+    "https://uk.pinterest.com/pin/627900373086542218/"
+   ],
+   "title": "스토리 핀 이미지",
+   "source": "uk.pinterest.com",
+   "added": "2026-10-21 21:22:16",
+   "status": "tagged",
+   "field": "graphic",
+   "tags": [
+    "minimal",
+    "grid-based",
+    "editorial-layout",
+    "swiss-style",
+    "brutalist",
+    "typography-led",
+    "black-and-white",
+    "sans-serif"
+   ],
+   "group_name": "editorial design",
+   "user_tags": [],
+   "model": "gemini-3.5-flash-lite",
+   "tagged": "2026-10-21 21:23:10",
+   "error": null,
+   "tokens": [
+    1760,
+    87
+   ],
+   "latency_ms": 54322
+  },
+  "4548700be9181891": {
+   "id": "4548700be9181891",
+   "file": "4548700be9181891.jpg",
+   "image_url": "https://i.pinimg.com/736x/9e/9c/4e/9e9c4e53af4763fb930c135e61022f38.jpg",
+   "page_url": "https://uk.pinterest.com/pin/761249143298821218/",
+   "pages": [
+    "https://uk.pinterest.com/pin/761249143298821218/"
+   ],
+   "title": "스토리 핀 이미지",
+   "source": "uk.pinterest.com",
+   "added": "2026-10-21 21:23:28",
+   "status": "tagged",
+   "field": "photo",
+   "tags": [
+    "editorial-layout",
+    "poster",
+    "typography-led",
+    "sans-serif",
+    "grain",
+    "cool-palette",
+    "asymmetrical"
+   ],
+   "group_name": "editorial fashion",
+   "user_tags": [],
+   "model": "gemini-3.5-flash-lite",
+   "tagged": "2026-10-21 21:23:29",
+   "error": null,
+   "tokens": [
+    1733,
+    75
+   ],
+   "latency_ms": 1289
+  }
+ }
+}

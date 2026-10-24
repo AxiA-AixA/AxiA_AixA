@@ -1,0 +1,506 @@
+{
+ "version": 1,
+ "note": "tags.txt에서 시작",
+ "min_tags": 5,
+ "max_tags": 8,
+ "tags": [
+  {
+   "tag": "minimal",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "maximal",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "geometric",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "organic",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "abstract",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "figurative",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "symmetrical",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "asymmetrical",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "grid-based",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "modular",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "layered",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "negative-space",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "dense",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "centered-composition",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "off-center-composition",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "repetition",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "pattern",
+   "group": "형태·구성",
+   "def": ""
+  },
+  {
+   "tag": "photorealistic",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "glossy",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "matte",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "metallic",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "glass",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "translucent",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "liquid",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "soft-body",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "fabric",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "plastic",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "paper",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "grain",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "noise-texture",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "iridescent",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "chrome",
+   "group": "질감·재질",
+   "def": ""
+  },
+  {
+   "tag": "soft-light",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "hard-light",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "studio-lighting",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "rim-light",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "volumetric-light",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "neon",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "backlit",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "high-key",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "low-key",
+   "group": "빛",
+   "def": ""
+  },
+  {
+   "tag": "monochrome",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "duotone",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "pastel",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "vivid",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "muted",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "dark-palette",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "warm-palette",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "cool-palette",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "gradient",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "black-and-white",
+   "group": "색",
+   "def": ""
+  },
+  {
+   "tag": "typography-led",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "serif",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "sans-serif",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "display-type",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "kinetic-type",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "editorial-layout",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "poster",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "book-spread",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "magazine",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "swiss-style",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "brutalist",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "collage",
+   "group": "타이포·레이아웃",
+   "def": ""
+  },
+  {
+   "tag": "3d-render",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "product-render",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "abstract-3d",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "character-3d",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "environment-3d",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "simulation",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "procedural",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "low-poly",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "clay-render",
+   "group": "3D·CG",
+   "def": ""
+  },
+  {
+   "tag": "motion-graphics",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "title-sequence",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "loop-animation",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "transition",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "camera-move",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "slow-motion",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "stop-motion",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "live-action",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "music-video",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "commercial",
+   "group": "영상·모션",
+   "def": ""
+  },
+  {
+   "tag": "ai-generated",
+   "group": "AI 이미지",
+   "def": ""
+  },
+  {
+   "tag": "surreal",
+   "group": "AI 이미지",
+   "def": ""
+  },
+  {
+   "tag": "dreamlike",
+   "group": "AI 이미지",
+   "def": ""
+  },
+  {
+   "tag": "hyperreal",
+   "group": "AI 이미지",
+   "def": ""
+  },
+  {
+   "tag": "uncanny",
+   "group": "AI 이미지",
+   "def": ""
+  },
+  {
+   "tag": "calm",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "energetic",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "playful",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "futuristic",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "retro",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "nostalgic",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "luxurious",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "industrial",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "natural",
+   "group": "분위기",
+   "def": ""
+  },
+  {
+   "tag": "clinical",
+   "group": "분위기",
+   "def": ""
+  }
+ ],
+ "fields": {
+  "3d": "CG render or 3D artwork",
+  "graphic": "graphic design: branding, posters, flat or vector illustration, 2D compositions",
+  "typography": "work where lettering / type is the main subject (type specimens, lettering, type-led posters)",
+  "painting": "painting or drawing made by hand or digitally in a painterly way (oil, watercolour, gouache, sketch)",
+  "photo": "camera photograph (fashion, product, portrait, landscape)",
+  "package": "packaging design: boxes, bottles, labels, bags",
+  "video": "still from film / motion / animation",
+  "ui_ux": "app screen, website, interface",
+  "spatial": "interior, retail, exhibition, stage or set design",
+  "editorial": "editorial / book / magazine / layout design",
+  "ai_image": "image made with a generative AI model"
+ }
+}
