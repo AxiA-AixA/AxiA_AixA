@@ -1,5 +1,6 @@
 import { parseOg } from "@/lib/og";
 import { downloadThumb, readImports, savePreview } from "@/lib/imports";
+import { syncAll } from "@/lib/axia";
 
 // GET /api/preview?url=... -> { url, title, image }. Fetched server-side because
 // browsers can't read other sites' HTML (CORS). For imported links the thumbnail is
@@ -25,5 +26,6 @@ export async function GET(request) {
     if (image && entry) image = await downloadThumb(url, image);
   } catch {}
   if (entry) savePreview(url, { title, image });
+  if (entry && image) syncAll(); // new thumbnail -> prototype analyses it
   return Response.json({ url, title, image });
 }

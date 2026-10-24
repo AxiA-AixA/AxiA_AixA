@@ -145,3 +145,6 @@ h2 { font-size: var(--text-small); margin-bottom: 8px; }
   .step + .step::before { content: "↓"; left: 50%; top: -26px; transform: translateX(-50%); }
 }
 .figure { display: block; width: 100%; height: auto; margin-top: 48px; padding: 24px 0; border-top: 1px solid var(--grey); font-family: var(--font); }
+
+/* /library: the axia-prototype app, full screen under the header */
+.library { position: fixed; top: 51px; left: 0; width: 100%; height: calc(100% - 51px); border: 0; }

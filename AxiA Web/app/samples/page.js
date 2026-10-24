@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { readCsv } from "@/lib/csv";
 import { readImports } from "@/lib/imports";
+import { withAnalysis } from "@/lib/axia";
 
 export const metadata = { title: "Samples · AxiA" };
 export const dynamic = "force-dynamic";
@@ -20,14 +21,14 @@ function collect(rel = "") {
   return rel ? [{ name: rel, depth: rel.split("/").length - 1, files }, ...children] : children;
 }
 
-export default function Samples() {
+export default async function Samples() {
   const categories = collect();
   // labels.csv: file (path under public/samples), tags (";"-separated), source, split
   const labels = new Map(readCsv("data/labels.csv").map((l) => [l.file, l]));
   // tags.csv: tag, definition, example — shown as a tooltip on each tag
   const dictionary = new Map(readCsv("data/tags.csv").map((t) => [t.tag, t.definition]));
-  // Thumbnails saved from the home page import: "imported/<hash>.jpg" -> original post
-  const imported = new Map(readImports().filter((e) => e.image).map((e) => [e.image.replace("/samples/", ""), e.url]));
+  // Thumbnails saved from the home page import: "imported/<hash>.jpg" -> entry (url, AI tags)
+  const imported = new Map((await withAnalysis(readImports())).filter((e) => e.image).map((e) => [e.image.replace("/samples/", ""), e]));
 
   return (
     <section>
@@ -41,19 +42,21 @@ export default function Samples() {
               {c.files.map((f) => {
                 const file = `${c.name}/${f}`;
                 const label = labels.get(file);
-                const tags = label?.tags.split(";").map((t) => t.trim()).filter(Boolean) ?? [];
+                const ai = imported.get(file);
+                const tags = label?.tags.split(";").map((t) => t.trim()).filter(Boolean) ?? ai?.tags ?? [];
                 return (
                   <figure key={f}>
                     <img src={`/samples/${file}`} alt={f} loading="lazy" />
                     <figcaption>
                       {label?.split && <b>{label.split}</b>}
+                      {!label && ai?.field && <b>{ai.field}</b>}
                       {tags.length === 0 && <i>no tags</i>}
                       {tags.map((t) => (
                         <span key={t} className={dictionary.has(t) ? "tag" : "tag unknown"}
                           title={dictionary.get(t) ?? "Not in tags.csv"}>{t}</span>
                       ))}
-                      {(label?.source ?? imported.get(file)) && (
-                        <a href={label?.source ?? imported.get(file)} target="_blank" rel="noreferrer">source</a>
+                      {(label?.source ?? ai?.url) && (
+                        <a href={label?.source ?? ai?.url} target="_blank" rel="noreferrer">source</a>
                       )}
                     </figcaption>
                   </figure>

@@ -17,14 +17,23 @@ const TUNING = [
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
 
+// What the hubs are: site, or the AI analysis (field / group name) from axia-prototype.
+const GROUP_BY = {
+  Platform: (e) => hostOf(e.url),
+  Field: (e) => e.field || "untagged",
+  Group: (e) => e.group_name || "untagged",
+};
+
 export default function Graph() {
   const canvasRef = useRef(null);
   const fileRef = useRef(null);
-  const g = useRef({ nodes: [], byId: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
+  const g = useRef({ nodes: [], byId: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false, hubs: new Map() });
   const [text, setText] = useState("");
   const [stats, setStats] = useState({ links: 0, thumbs: 0 });
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
+  const [groupBy, setGroupBy] = useState("Platform");
+  const groupRef = useRef(groupBy);
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
 
@@ -55,18 +64,33 @@ export default function Graph() {
     show(saved);
   }
 
-  // Draw entries as dots hanging off one hub per site; fetch thumbnails not cached yet.
+  // Draw entries as dots hanging off one hub per site/field/group; fetch thumbnails not cached yet.
   function show(entries) {
     const s = g.current;
     const fresh = entries.filter((e) => !s.byId.has(e.url));
     for (const e of fresh) {
-      const host = hostOf(e.url);
-      if (!s.byId.has(host)) addNode({ id: host, hub: true });
-      const node = addNode({ id: e.url, hub: false, parent: s.byId.get(host), title: e.title });
+      const node = addNode({ id: e.url, hub: false, entry: e, parent: hubFor(e), title: e.title });
       if (e.image) loadImage(node, e.image);
     }
     setStats((v) => ({ ...v, links: v.links + fresh.length }));
     loadPreviews(fresh.filter((e) => !e.fetched).map((e) => e.url));
+  }
+
+  function hubFor(e) {
+    const s = g.current, key = GROUP_BY[groupRef.current](e);
+    if (!s.hubs.has(key)) s.hubs.set(key, addNode({ id: key, hub: true }));
+    return s.hubs.get(key);
+  }
+
+  // Swap the hubs; dots keep their place and spring over to the new ones.
+  function regroup(by) {
+    const s = g.current;
+    groupRef.current = by;
+    setGroupBy(by);
+    s.nodes = s.nodes.filter((n) => !n.hub);
+    s.hubs.clear();
+    for (const n of s.nodes) n.parent = hubFor(n.entry);
+    s.userCam = false;
   }
 
   function addNode(n) {
@@ -74,7 +98,7 @@ export default function Graph() {
     const p = n.parent ?? { x: 0, y: 0 };
     Object.assign(n, { x: p.x + (Math.random() - 0.5) * 80, y: p.y + (Math.random() - 0.5) * 80, vx: 0, vy: 0 });
     s.nodes.push(n);
-    s.byId.set(n.id, n);
+    if (!n.hub) s.byId.set(n.id, n);
     return n;
   }
 
@@ -241,6 +265,11 @@ export default function Graph() {
         ctx.font = `500 14px ${color("--font")}`;
         ctx.fillText(s.hover.title.slice(0, 60), p.x, p.y + Math.max(t.hover, t.dot * k) + 20);
       }
+      if (s.hover?.entry.tags?.length) {
+        const p = pos.get(s.hover);
+        ctx.font = `500 12px ${color("--font")}`;
+        ctx.fillText(s.hover.entry.tags.join(" · "), p.x, p.y + Math.max(t.hover, t.dot * k) + 38);
+      }
       canvas.style.cursor = s.hover ? "pointer" : "grab";
     }
 
@@ -297,6 +326,12 @@ export default function Graph() {
       <canvas ref={canvasRef} className="graph" />
       <details className="tuning" open>
         <summary>Tuning · zoom {zoom.toFixed(2)}</summary>
+        <div className="tuning-actions">
+          {Object.keys(GROUP_BY).map((by) => (
+            <button key={by} type="button" className={by === groupBy ? "btn primary" : "btn"}
+              aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
+          ))}
+        </div>
         {TUNING.map((p) => (
           <label key={p.key}>
             <span>{p.label}</span>
