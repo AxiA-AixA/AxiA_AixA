@@ -87,7 +87,7 @@ def fetch(url, referer=None, limit=25_000_000):
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read(limit + 1)
         if len(data) > limit:
-            raise ValueError("파일이 너무 커요")
+            raise ValueError("File is too large")
         return data, r.headers.get("content-type", ""), r.geturl()
 
 
@@ -102,7 +102,7 @@ def platform_of(url):
 def add_image(data, *, image_url="", page_url="", title="", source=""):
     """이미지 바이트를 저장하고 보관함에 올려요. 같은 이미지는 한 번만 저장해요."""
     if len(data) < 2000:
-        raise ValueError("이미지가 너무 작거나 비어 있어요")
+        raise ValueError("Image is too small or empty")
     sha = hashlib.sha1(data).hexdigest()[:16]
     ext = ".png" if data[:4] == b"\x89PNG" else ".webp" if data[8:12] == b"WEBP" else ".gif" if data[:3] == b"GIF" else ".jpg"
     IMG.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ def add_from_url(image_url, page_url="", title="", source=""):
         return add_image(data, page_url=page_url, title=title, source=source)
     data, ctype, _ = fetch(image_url, referer=page_url or None)
     if "text/html" in ctype:
-        raise ValueError("이미지 주소가 아니라 웹페이지예요")
+        raise ValueError("That's a web page, not an image URL")
     return add_image(data, image_url=image_url, page_url=page_url, title=title, source=source)
 
 
@@ -145,7 +145,7 @@ def add_from_link(url):
     """붙여넣은 링크 처리: 이미지 주소 / 핀 / 보드 / 일반 페이지(대표 이미지)."""
     url = url.strip()
     if not re.match(r"https?://", url):
-        raise ValueError("http로 시작하는 링크를 넣어 주세요")
+        raise ValueError("Enter a link starting with http")
     data, ctype, final = fetch(url)
     if ctype.startswith("image/"):
         return [add_image(data, image_url=url, page_url=url)]
@@ -155,10 +155,10 @@ def add_from_link(url):
         found = add_pinterest_board_rss(final)
         if found:
             return found
-        raise ValueError("이 보드는 링크만으로는 못 가져와요. 보드 페이지를 열고 확장 프로그램의 '보드 전체 보내기'를 쓰세요.")
+        raise ValueError("This board can't be read from the link alone. Open the board and use the extension's 'Send this whole board'.")
     img = meta(page, "og:image") or meta(page, "twitter:image")
     if not img:
-        raise ValueError("이 페이지에서 대표 이미지를 못 찾았어요 (로그인이 필요한 페이지일 수 있어요)")
+        raise ValueError("No preview image found on this page (it may need a login)")
     title = meta(page, "og:title") or meta(page, "og:description")
     img = re.sub(r"i\.pinimg\.com/\d+x/", "i.pinimg.com/originals/", img)
     try:
@@ -216,7 +216,7 @@ def tag_worker():
                               tokens=[res.get("in_tokens"), res.get("out_tokens")], latency_ms=res.get("latency_ms"))
                 save_library(lib)
         except Exception as e:
-            STATUS["note"] = f"오류: {e}"
+            STATUS["note"] = f"Error: {e}"
         finally:
             STATUS["working"] = ""
             STATUS["note"] = ""
@@ -361,7 +361,7 @@ class H(BaseHTTPRequestHandler):
                     lib = library()
                     it = lib["items"].get(data["id"])
                     if not it:
-                        return self.send({"error": "없는 항목"}, 404)
+                        return self.send({"error": "No such item"}, 404)
                     if data.get("delete"):
                         (IMG / it["file"]).unlink(missing_ok=True)
                         del lib["items"][data["id"]]

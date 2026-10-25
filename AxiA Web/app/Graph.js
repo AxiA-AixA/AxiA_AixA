@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { extractLinks, hostOf } from "@/lib/links";
+import Link from "next/link";
+import { hostOf } from "@/lib/links";
 
 // Display values, tunable from the panel under the header. Find good ones, then
 // bake them in as the defaults here.
@@ -37,12 +38,9 @@ const passes = (e, selected) => selected.every((t) => e.tags.includes(t));
 
 export default function Graph() {
   const canvasRef = useRef(null);
-  const fileRef = useRef(null);
   const g = useRef({ nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
-  const [text, setText] = useState("");
   const [stats, setStats] = useState({ links: 0, thumbs: 0 });
   const [online, setOnline] = useState(true);
-  const [note, setNote] = useState("");
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
   const [groupBy, setGroupBy] = useState("Type");
@@ -52,6 +50,8 @@ export default function Graph() {
   const [selected, setSel] = useState([]);
   const selRef = useRef(selected);
   const [hits, setHits] = useState(0);
+  const [detail, setDetail] = useState(null); // clicked image, shown in the right half
+  const detailRef = useRef(null);
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
 
@@ -73,22 +73,6 @@ export default function Graph() {
     return () => clearInterval(t);
   }, []);
 
-  // New links are saved, then their thumbnails fetched; the server hands each one to the
-  // prototype, and it shows up here once it is in the library.
-  async function addLinks(raw) {
-    const urls = extractLinks(raw);
-    if (!urls.length) return;
-    const saved = await fetch("/api/imports", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ urls }),
-    }).then((r) => r.json());
-    const todo = saved.filter((e) => !e.fetched).map((e) => e.url);
-    setNote(`${urls.length} links added · fetching ${todo.length} thumbnails for analysis`);
-    await loadPreviews(todo);
-    setNote(`${urls.length} links sent for analysis`);
-  }
-
   // Add new library items; for known ones pick up new analysis results.
   function show(items) {
     const s = g.current;
@@ -103,6 +87,7 @@ export default function Graph() {
       } else {
         if (n.entry.tags.join() !== e.tags.join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
         n.entry = e;
+        if (detailRef.current?.id === e.id) { detailRef.current = e; setDetail(e); } // keep the open panel current
       }
     }
     if (changed) rebuild(0.3); // background updates nudge the layout, not reshuffle it
@@ -149,6 +134,11 @@ export default function Graph() {
     setTags(Object.entries(count).sort((a, b) => b[1] - a[1]));
     setHits(items.length);
   }
+  function unpinAll() {
+    const s = g.current;
+    for (const n of [...s.byId.values(), ...s.hubCache.values()]) n.pinned = false;
+    s.heat = 1;
+  }
   function regroup(by) { groupRef.current = by; setGroupBy(by); rebuild(); }
   function setSelected(next) { selRef.current = next; setSel(next); rebuild(); }
 
@@ -161,29 +151,13 @@ export default function Graph() {
     setQuery("");
   }
 
+  function openDetail(e) { detailRef.current = e; setDetail(e); g.current.userCam = false; }
+  function closeDetail() { detailRef.current = null; setDetail(null); g.current.userCam = false; }
+
   function loadImage(node, src) {
     const img = new Image();
     img.onload = () => { node.img = img; setStats((v) => ({ ...v, thumbs: v.thumbs + 1 })); };
     img.src = src;
-  }
-
-  async function loadPreviews(urls) {
-    const queue = [...urls];
-    const worker = async () => {
-      while (queue.length) await fetch(`/api/preview?url=${encodeURIComponent(queue.shift())}`).catch(() => {});
-    };
-    await Promise.all(Array.from({ length: 6 }, worker));
-  }
-
-  function readFiles(files) {
-    for (const f of files) f.text().then(addLinks);
-  }
-
-  function submit(e) {
-    e.preventDefault();
-    if (!text.trim()) return;
-    addLinks(text);
-    setText("");
   }
 
   // Simulation + drawing loop.
@@ -194,6 +168,12 @@ export default function Graph() {
     const css = getComputedStyle(document.documentElement);
     const color = (v) => css.getPropertyValue(v).trim();
     let raf;
+
+    const hubAt = (m) => m && s.nodes.find((n) => {
+      if (!n.hub) return false;
+      const p = toScreen(n);
+      return Math.hypot(p.x - m.x, p.y - m.y) < 12;
+    });
 
     const toScreen = (n) => ({
       x: (n.x - s.cam.x) * s.cam.k + canvas.clientWidth / 2,
@@ -224,6 +204,7 @@ export default function Graph() {
         a.vx -= a.x * 0.002; a.vy -= a.y * 0.002; // gravity to centre
       }
       for (const n of nodes) {
+        if (n === s.dragged || n.pinned) { n.vx = n.vy = 0; continue; } // held by the mouse, or dropped there
         n.vx *= 0.8; n.vy *= 0.8;
         n.x += Math.max(-20, Math.min(20, n.vx));
         n.y += Math.max(-20, Math.min(20, n.vy));
@@ -235,13 +216,15 @@ export default function Graph() {
       if (s.userCam || !s.nodes.length) return;
       const xs = s.nodes.map((n) => n.x), ys = s.nodes.map((n) => n.y);
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-      const pad = 160; // room for the header, tuning panel and composer
+      const pad = 160; // room for the header and tag search
+      // fit the graph into the area left of the right-hand panel (detail = half the screen)
+      const side = detailRef.current ? canvas.clientWidth / 2 : 300;
       const k = Math.min(8, Math.max(0.05, Math.min(
-        canvas.clientWidth / (maxX - minX + pad / s.cam.k),
+        (canvas.clientWidth - side) / (maxX - minX + pad / s.cam.k),
         canvas.clientHeight / (maxY - minY + pad / s.cam.k),
       )));
       const ease = (a, b) => a + (b - a) * 0.15;
-      s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2), y: ease(s.cam.y, (minY + maxY) / 2) };
+      s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(s.cam.y, (minY + maxY) / 2) };
       if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
     }
 
@@ -310,13 +293,21 @@ export default function Graph() {
         }
       }
 
+      const open = detailRef.current && s.byId.get(detailRef.current.id);
+      if (open && pos.has(open)) { // ring around the image shown in the detail panel
+        const p = pos.get(open);
+        ctx.strokeStyle = color("--black"); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, p.y, (open.r ?? 4) + 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
       ctx.fillStyle = color("--black");
-      ctx.font = `500 14px ${color("--font")}`;
+      ctx.font = `500 13px ${color("--font-label")}`;
       ctx.textAlign = "center";
       for (const n of s.nodes.filter((n) => n.hub)) {
         const p = pos.get(n);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillText(n.id, p.x, p.y - 14);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillText(n.id, p.x, p.y - 12);
       }
       if (s.hover?.entry.title) {
         const p = pos.get(s.hover);
@@ -329,13 +320,13 @@ export default function Graph() {
         ctx.font = `500 12px ${color("--font")}`;
         ctx.fillText(s.hover.entry.tags.join(" · "), p.x, p.y + Math.max(t.hover, t.dot * k) + 38);
       }
-      canvas.style.cursor = s.hover ? "pointer" : "grab";
+      canvas.style.cursor = s.dragged ? "grabbing" : s.hover || hubAt(s.mouse) ? "pointer" : "grab";
     }
 
     const loop = () => { step(); fit(); draw(); raf = requestAnimationFrame(loop); };
     loop();
 
-    // Wheel zooms around the cursor, drag pans, click opens the original post.
+    // Wheel zooms around the cursor, drag pans, click shows the image in the detail panel.
     let drag = null;
     const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     const onWheel = (e) => {
@@ -346,19 +337,38 @@ export default function Graph() {
       s.cam = { k, x: wx - (m.x - canvas.clientWidth / 2) / k, y: wy - (m.y - canvas.clientHeight / 2) / k };
       setZoom(k);
     };
-    const onDown = (e) => { drag = { ...local(e), cam: { ...s.cam }, moved: false }; };
+    // Press on a dot or hub and move: drag it (its links pull neighbours along, like Obsidian);
+    // where you drop it, it stays (Reset in the Display panel unpins everything).
+    // Press on empty space and move: pan. Press and release without moving on a dot: open it.
+    const onDown = (e) => {
+      const m = local(e);
+      drag = { ...m, cam: { ...s.cam }, moved: false, node: s.hover ?? hubAt(m) };
+      canvas.setPointerCapture(e.pointerId);
+    };
     const onMove = (e) => {
       s.mouse = local(e);
       if (!drag) return;
       const dx = s.mouse.x - drag.x, dy = s.mouse.y - drag.y;
-      if (Math.hypot(dx, dy) > 3) { drag.moved = true; s.userCam = true; }
-      s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
+      if (Math.hypot(dx, dy) > 3) { drag.moved = true; s.userCam = true; } // camera stays put while you work
+      if (!drag.moved) return;
+      if (drag.node) {
+        s.dragged = drag.node;
+        drag.node.pinned = true;
+        drag.node.x = (s.mouse.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x;
+        drag.node.y = (s.mouse.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
+        s.heat = Math.max(s.heat ?? 0, 0.3); // wake the layout so neighbours follow
+      } else {
+        s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
+      }
     };
     const onUp = () => {
-      if (drag && !drag.moved && s.hover?.entry.url) window.open(s.hover.entry.url, "_blank", "noopener");
+      if (drag && !drag.moved && drag.node && !drag.node.hub) openDetail(drag.node.entry);
       drag = null;
+      s.dragged = null;
     };
-    const onLeave = () => { s.mouse = null; drag = null; };
+    const onLeave = () => { s.mouse = null; drag = null; s.dragged = null; };
+    const onKey = (e) => { if (e.key === "Escape") closeDetail(); };
+    window.addEventListener("keydown", onKey);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
@@ -366,6 +376,7 @@ export default function Graph() {
     canvas.addEventListener("pointerleave", onLeave);
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener("keydown", onKey);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
@@ -377,37 +388,61 @@ export default function Graph() {
   const empty = stats.links === 0;
 
   return (
-    <div
-      className="stage"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => { e.preventDefault(); readFiles(e.dataTransfer.files); }}
-    >
+    <div className="stage">
       <canvas ref={canvasRef} className="graph" />
-      <div className="tag-search">
-        <form onSubmit={(e) => { e.preventDefault(); addTag(query); }}>
+      <div className="tag-search glass">
+        <p className="tag-status">
+          {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
+            : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} tags`}
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); addTag(query); }} role="search">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
+          </svg>
           <input list="axia-tags" value={query} placeholder="Search tags (e.g. Chrome, Diffused)" aria-label="Search tags"
             onChange={(e) => (tags.some(([t]) => t === e.target.value) ? addTag(e.target.value) : setQuery(e.target.value))} />
           <datalist id="axia-tags">
             {tags.map(([t, n]) => <option key={t} value={t}>{n}</option>)}
           </datalist>
-          {selected.length > 0 && <span>{hits} images</span>}
         </form>
         {selected.length > 0 && (
           <div className="tag-chips">
             {selected.map((t) => (
-              <button key={t} type="button" className="btn primary" aria-label={`Remove ${t}`}
+              <button key={t} type="button" className="chip on" aria-label={`Remove ${t}`}
                 onClick={() => setSelected(selected.filter((x) => x !== t))}>{t} ×</button>
             ))}
             <button type="button" className="btn" onClick={() => setSelected([])}>Clear</button>
           </div>
         )}
       </div>
-      <details className="tuning" open>
-        <summary>Tuning · zoom {zoom.toFixed(2)}</summary>
-        <div className="tuning-actions">
+      {detail && (
+        <aside className="detail" aria-label="Selected reference">
+          <div className="detail-bar">
+            <span>{fieldNames(detail).join(" · ")}</span>
+            <button type="button" className="btn" onClick={closeDetail}>Close ×</button>
+          </div>
+          <img src={detail.image} alt={detail.title || "Reference image"} />
+          {detail.title && <h2>{detail.title}</h2>}
+          {!detail.tags.length && <p>Analysing… tags will appear here.</p>}
+          <div className="detail-tags">
+            {detail.tags.map((t) => (
+              <button key={t} type="button" className={selected.includes(t) ? "chip on" : "chip"}
+                title={selected.includes(t) ? "Remove this tag filter" : "Filter the graph by this tag"}
+                onClick={() => (selected.includes(t) ? setSelected(selected.filter((x) => x !== t)) : addTag(t))}>{t}</button>
+            ))}
+          </div>
+          {detail.url && (
+            <a href={detail.url} target="_blank" rel="noopener noreferrer" className="btn primary detail-source">
+              View source on {hostOf(detail.url)} ↗
+            </a>
+          )}
+        </aside>
+      )}
+      <details className="tuning glass" open hidden={!!detail}>
+        <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
+        <div className="segmented" role="group" aria-label="Group the graph by">
           {Object.keys(GROUP_BY).map((by) => (
-            <button key={by} type="button" className={by === groupBy ? "btn primary" : "btn"}
-              aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
+            <button key={by} type="button" aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
           ))}
         </div>
         {TUNING.map((p) => (
@@ -415,40 +450,25 @@ export default function Graph() {
             <span>{p.label}</span>
             <output>{tune[p.key]}</output>
             <input type="range" min={p.min} max={p.max} step={p.step} value={tune[p.key]}
+              style={{ "--p": `${((tune[p.key] - p.min) / (p.max - p.min)) * 100}%` }}
               onChange={(e) => setParam(p.key, Number(e.target.value))} />
           </label>
         ))}
         <div className="tuning-actions">
           <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
-          <button type="button" className="btn" onClick={() => { setTune(DEFAULTS); try { localStorage.removeItem(STORE); } catch {} }}>
+          <button type="button" className="btn" title="Reset the sliders and unpin dots you moved"
+            onClick={() => { setTune(DEFAULTS); try { localStorage.removeItem(STORE); } catch {} unpinAll(); }}>
             Reset
           </button>
         </div>
       </details>
-      <input ref={fileRef} type="file" accept=".json,.txt,.csv,.html" multiple hidden
-        onChange={(e) => { readFiles(e.target.files); e.target.value = ""; }} />
-
-      {empty && (
-        <button className="add" onClick={() => fileRef.current.click()} aria-label="Import a JSON file">+</button>
+      {empty && online && (
+        <div className="empty">
+          <h1>Nothing here yet</h1>
+          <p>Add references (links, files, Instagram JSON) in Reference. They show up here once analysed.</p>
+          <Link href="/reference" className="btn primary">Open Reference</Link>
+        </div>
       )}
-
-      <div className="dock">
-        {empty && <h1>Import Your References</h1>}
-        <form className="composer" onSubmit={submit}>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) submit(e); }}
-            placeholder="Paste JSON or links, or drop a file anywhere"
-            rows={1}
-          />
-          <div className="composer-bar">
-            <button type="button" className="btn" onClick={() => fileRef.current.click()} aria-label="Upload a file">+ File</button>
-            <span>{!online ? "AI analyser is off: open axia-prototype/Axia-실행-Mac.command" : note || (empty ? "Instagram, Pinterest, Are.na exports work" : `${stats.links} references · ${tags.length} tags`)}</span>
-            <button type="submit" className="btn primary">Import ↵</button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

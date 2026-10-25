@@ -237,7 +237,7 @@ def tag_image(data, court, provider, model, key, mode="list", size=512, retries=
             body = e.read().decode(errors="ignore")[:300]
             if e.code in (429, 500, 502, 503, 529) and attempt < retries:
                 if on_retry:
-                    on_retry(f"HTTP {e.code} → {min(60, base_wait * (attempt + 1))}초 기다렸다 다시 ({attempt + 1}/{retries}): {body[:160]}")
+                    on_retry(f"HTTP {e.code}{' (rate limit)' if e.code == 429 else ''} → retrying in {min(60, base_wait * (attempt + 1))}s ({attempt + 1}/{retries})")
                 time.sleep(min(60, base_wait * (attempt + 1)))  # 무료 등급의 분당 한도에 걸리면 기다렸다 다시
                 continue
             return {"latency_ms": int((time.time() - t0) * 1000), "error": f"HTTP {e.code}: {body}"}
@@ -255,7 +255,7 @@ def tag_with_fallback(data, court, chain, keys, mode="list", size=512, on_retry=
     """대체 순서(chain)대로 시도해요. 앞 모델이 붐비거나(503·429) 없어졌으면(404) 다음 모델로 넘어가요.
     chain = [{"provider": "gemini", "model": "gemini-3.5-flash-lite"}, {"provider": "anthropic", "model": "claude-haiku-5-5"}, ...]
     키가 없는 회사는 건너뛰어요."""
-    last = {"error": "사용할 수 있는 모델이 없어요. 설정에서 API 키를 넣어 주세요."}
+    last = {"error": "No model available. Add an API key in Settings."}
     for step in chain:
         prov, model = step.get("provider"), step.get("model")
         key = keys.get(prov, "")
@@ -269,7 +269,7 @@ def tag_with_fallback(data, court, chain, keys, mode="list", size=512, on_retry=
         if not str(res["error"]).startswith(BUSY):
             return res  # 붐빔이 아닌 오류(키 틀림 등)는 다음 모델로 넘겨도 소용없어서 바로 알려요
         if on_retry:
-            on_retry(f"{model} 붐빔 → 다음 모델로")
+            on_retry(f"{model} busy → trying the next model")
     return last
 
 
