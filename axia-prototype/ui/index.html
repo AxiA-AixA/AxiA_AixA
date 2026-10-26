@@ -27,7 +27,7 @@
   button.primary:hover { background:#000; }
   button.ghost { color:var(--muted); }
   button:disabled { opacity:.4; cursor:default; }
-  input, select { font:inherit; font-size:15px; height:36px; padding:0 12px; border:0; border-radius:10px; background:var(--fill); width:100%; color:var(--black); }
+  input, select { font:inherit; font-size:15px; height:36px; padding:0 12px; border:0; border-radius:8px; background:var(--fill); width:100%; color:var(--black); }
   input::placeholder { color:var(--muted); }
   input:focus, select:focus { outline:none; box-shadow:0 0 0 3px var(--focus); }
   input[type=checkbox] { width:auto; height:auto; accent-color:var(--black); }
@@ -53,14 +53,14 @@
   .chips span.on { background:var(--black); color:var(--white); }
   .bar { display:flex; gap:16px; align-items:center; margin-bottom:24px; flex-wrap:wrap; }
   .bar input { flex:1; min-width:200px; }
-  .seg { display:flex; padding:2px; border-radius:9px; background:var(--fill); }
-  .seg button { height:28px; border-radius:7px; padding:0 12px; font-size:13px; color:var(--black); }
-  .seg button.on { background:var(--white); font-weight:500; box-shadow:0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
+  .seg { display:flex; padding:2px; border-radius:8px; background:var(--fill); }
+  .seg button { height:28px; border-radius:6px; padding:0 12px; font-size:13px; color:var(--black); }
+  .seg button.on { background:var(--white); font-weight:500; }
   #count { font-size:13px; color:var(--muted); }
 
   .grid { columns:5 200px; column-gap:16px; }
   .card { break-inside:avoid; margin-bottom:24px; cursor:pointer; }
-  .card img { width:100%; display:block; border-radius:12px; background:var(--grey); }
+  .card img { width:100%; display:block; border-radius:10px; background:var(--grey); }
   .card .meta { padding-top:8px; }
   .badge { display:inline-block; padding:2px 8px; margin:0 4px 4px 0; border-radius:980px; background:var(--fill); font-size:12px; font-weight:500; color:var(--black); }
   .badge.q { color:var(--muted); font-weight:400; }
@@ -76,18 +76,21 @@
   .empty b { font-weight:500; color:var(--black); }
   body.drag::after { content:"Drop to add to AxiA"; position:fixed; inset:12px; border-radius:24px; border:2px dashed var(--black); background:rgba(255,255,255,.8); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); display:grid; place-items:center; font:500 32px var(--font-display); z-index:50; pointer-events:none; }
 
-  dialog { border:0; border-radius:20px; padding:0; max-width:min(1040px,94vw); width:100%; box-shadow:0 24px 80px rgba(0,0,0,.22); }
-  dialog::backdrop { background:rgba(0,0,0,.3); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+  /* Boxes (after juliaplaza.com): translucent grey + blur, 10px corners, no border or shadow */
+  dialog { border:0; border-radius:10px; padding:0; max-width:min(1040px,94vw); width:100%; background:rgba(236,236,236,.88); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); }
+  dialog::backdrop { background:rgba(150,150,150,.2); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); }
   .dlg { display:grid; grid-template-columns:1.2fr 1fr; }
-  .dlg .pic { background:var(--grey); display:grid; place-items:center; max-height:82vh; } .dlg .pic img { max-width:100%; max-height:82vh; }
+  .dlg .pic { background:rgba(150,150,150,.2); display:grid; place-items:center; max-height:82vh; } .dlg .pic img { max-width:100%; max-height:82vh; }
   .dlg .side { padding:24px; overflow:auto; max-height:82vh; }
-  .dlg .side b { font-family:var(--font-display); font-weight:500; font-size:22px; }
+  .dlg .side b { font-family:var(--font-display); font-weight:500; font-size:22px; line-height:1.2; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .dlg .side > .row:first-child { flex-wrap:nowrap; align-items:flex-start; }
+  .dlg .side:focus-visible { outline:none; } /* scrollable panel gets focus when the dialog opens */
   .dlg label { display:block; font-size:13px; color:var(--muted); margin:20px 0 8px; }
   .set { padding:var(--margin); }
   .set h2 { margin:0 0 6px; font-family:var(--font-display); font-size:20px; font-weight:500; }
   .set p { color:var(--muted); font-size:14px; margin:0 0 14px; }
   .chain { display:grid; grid-template-columns:28px 140px 1fr 70px; gap:8px; align-items:center; margin-bottom:8px; font-size:14px; color:var(--muted); }
-  .note { border-radius:10px; background:rgba(215,0,21,.08); color:var(--bad); padding:10px 12px; font-size:14px; margin:12px 0; }
+  .note { border-radius:8px; background:rgba(215,0,21,.08); color:var(--bad); padding:10px 12px; font-size:14px; margin:12px 0; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .row input[type=password] { width:auto; flex:1; min-width:160px; }
   @media (max-width:800px) { .wrap { grid-template-columns:1fr; } .dlg { grid-template-columns:1fr; } }

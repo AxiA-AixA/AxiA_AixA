@@ -15,6 +15,8 @@ const TUNING = [
   { key: "hover", label: "Hover size (px)", min: 20, max: 160, step: 2, value: 60 },
   { key: "corner", label: "Corner radius when large (px)", min: 0, max: 30, step: 1, value: 6 },
 ];
+const HUB_DOTS = 4; // hub thumbnail circle = this × "Dot size" (radius, screen px)
+const SIDE_W = 340;    // width of the right-hand panel column (matches .side in globals.css)
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
 
@@ -47,11 +49,17 @@ export default function Graph() {
   const groupRef = useRef(groupBy);
   const [tags, setTags] = useState([]); // [[tag, count]] among shown images, for suggestions
   const [query, setQuery] = useState("");
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [active, setActive] = useState(0); // highlighted suggestion
   const [selected, setSel] = useState([]);
   const selRef = useRef(selected);
   const [hits, setHits] = useState(0);
   const [detail, setDetail] = useState(null); // clicked image, shown in the right half
   const detailRef = useRef(null);
+  const [tuningOpen, setTuningOpen] = useState(true);
+  const tuningWas = useRef(true); // Display folds while an image is open, then comes back as it was
+  const tuningOpenRef = useRef(true);
+  tuningOpenRef.current = tuningOpen;
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
 
@@ -110,6 +118,7 @@ export default function Graph() {
     const s = g.current;
     if (!s.hubs.has(key)) {
       const h = s.hubCache.get(key) ?? place({ id: key, hub: true });
+      h.kids = []; // its images; the first one with a loaded thumbnail stands for the hub
       s.hubCache.set(key, h);
       s.hubs.set(key, h);
       s.nodes.push(h);
@@ -125,6 +134,7 @@ export default function Graph() {
     s.hubs.clear();
     for (const n of items) {
       n.parents = keysOf(n.entry).map(hubFor);
+      for (const h of n.parents) h.kids.push(n);
       if (n.x == null) place(n, n.parents[0]);
     }
     s.userCam = false;
@@ -142,17 +152,45 @@ export default function Graph() {
   function regroup(by) { groupRef.current = by; setGroupBy(by); rebuild(); }
   function setSelected(next) { selRef.current = next; setSel(next); rebuild(); }
 
-  // Exact tag (any case), else the most used tag containing the text ("lit" -> Backlit).
-  function addTag(raw) {
-    const q = raw.trim().toLowerCase();
-    const t = tags.find(([t]) => t.toLowerCase() === q)?.[0] ?? tags.find(([t]) => q && t.toLowerCase().includes(q))?.[0];
-    if (!t) return;
+  // Suggestions while typing: tags containing the text, those starting with it first, then by use.
+  // `tags` only holds tags of the images still shown, so once filters are set these are the related
+  // tags (picking one always narrows the result, never empties it). Empty field: most used first.
+  const q = query.trim().toLowerCase();
+  const suggestions = (q
+    ? tags.filter(([t]) => t.toLowerCase().includes(q))
+        .sort((a, b) => b[0].toLowerCase().startsWith(q) - a[0].toLowerCase().startsWith(q) || b[1] - a[1])
+    : tags).slice(0, 8);
+  const showSuggest = suggestOpen && suggestions.length > 0;
+
+  function addTag(t) {
+    if (!t || selRef.current.includes(t)) return;
     setSelected([...selRef.current, t]);
     setQuery("");
+    setActive(0);
+    setSuggestOpen(false); // don't cover the chips; typing, ↓ or a click reopens it
+  }
+  function onSearchKey(e) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setSuggestOpen(true);
+      const d = e.key === "ArrowDown" ? 1 : -1;
+      setActive((a) => (a + d + suggestions.length) % Math.max(1, suggestions.length));
+    } else if (e.key === "Escape") {
+      e.stopPropagation(); // close the list, not the detail panel
+      setSuggestOpen(false);
+    } else if (e.key === "Backspace" && !query && selected.length) {
+      setSelected(selected.slice(0, -1)); // like a token field: backspace removes the last filter
+    }
   }
 
-  function openDetail(e) { detailRef.current = e; setDetail(e); g.current.userCam = false; }
-  function closeDetail() { detailRef.current = null; setDetail(null); g.current.userCam = false; }
+  function openDetail(e) {
+    if (!detailRef.current) { tuningWas.current = tuningOpenRef.current; setTuningOpen(false); }
+    detailRef.current = e; setDetail(e); g.current.userCam = false;
+  }
+  function closeDetail() {
+    if (detailRef.current) setTuningOpen(tuningWas.current);
+    detailRef.current = null; setDetail(null); g.current.userCam = false;
+  }
 
   function loadImage(node, src) {
     const img = new Image();
@@ -169,10 +207,22 @@ export default function Graph() {
     const color = (v) => css.getPropertyValue(v).trim();
     let raf;
 
-    const hubAt = (m) => m && s.nodes.find((n) => {
+    // Hubs show a representative thumbnail in a circle 4× the dot size (a small dot until one has loaded).
+    const hubImg = (h) => h.rep?.img;
+    // Pick each hub's thumbnail: its first loaded image that no other hub is already showing.
+    const pickReps = () => {
+      const used = new Set();
+      for (const h of s.nodes) {
+        if (!h.hub) continue;
+        h.rep = h.kids?.find((k) => k.img && !used.has(k)) ?? h.kids?.find((k) => k.img);
+        if (h.rep) used.add(h.rep);
+      }
+    };
+    const hubR = (h) => (hubImg(h) ? tuneRef.current.dot * HUB_DOTS : 6);
+    const hubAt = (m) => m && s.nodes.findLast((n) => {
       if (!n.hub) return false;
       const p = toScreen(n);
-      return Math.hypot(p.x - m.x, p.y - m.y) < 12;
+      return Math.hypot(p.x - m.x, p.y - m.y) <= Math.max(hubR(n), 10);
     });
 
     const toScreen = (n) => ({
@@ -194,6 +244,15 @@ export default function Graph() {
           const d2 = dx * dx + dy * dy || 0.01;
           const f = (a.hub && b.hub ? 6000 : tuneRef.current.spread) / d2;
           a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
+          if (a.hub && b.hub) { // keep hub thumbnails (screen size) from overlapping
+            // ponytail: gap is in screen px, capped at zoom 0.08 so it can't feed back into fit()
+            // (wider gap -> zoom out -> wider gap); many hubs may overlap a little when zoomed far out.
+            const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, 0.08), d = Math.sqrt(d2);
+            if (d < min) {
+              const push = ((min - d) / d) * 0.2;
+              a.vx += dx * push; a.vy += dy * push; b.vx -= dx * push; b.vy -= dy * push;
+            }
+          }
         }
         for (const p of a.parents ?? []) { // spring to each of its hubs, shared out
           const dx = p.x - a.x, dy = p.y - a.y;
@@ -216,9 +275,9 @@ export default function Graph() {
       if (s.userCam || !s.nodes.length) return;
       const xs = s.nodes.map((n) => n.x), ys = s.nodes.map((n) => n.y);
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-      const pad = 160; // room for the header and tag search
+      const pad = 120 + 2 * tuneRef.current.dot * HUB_DOTS; // header, plus hub circles at the edges
       // fit the graph into the area left of the right-hand panel (detail = half the screen)
-      const side = detailRef.current ? canvas.clientWidth / 2 : 300;
+      const side = SIDE_W + 48; // the right-hand column of panels
       const k = Math.min(8, Math.max(0.05, Math.min(
         (canvas.clientWidth - side) / (maxX - minX + pad / s.cam.k),
         canvas.clientHeight / (maxY - minY + pad / s.cam.k),
@@ -252,8 +311,9 @@ export default function Graph() {
       s.hover = null;
       let best = 20;
       const items = s.nodes.filter((n) => !n.hub);
+      const overHub = hubAt(s.mouse);
       for (const n of items) {
-        if (!s.mouse) break;
+        if (!s.mouse || overHub) break;
         const p = pos.get(n), d = Math.hypot(p.x - s.mouse.x, p.y - s.mouse.y);
         if (d < best) { best = d; s.hover = n; }
       }
@@ -304,11 +364,31 @@ export default function Graph() {
       ctx.fillStyle = color("--black");
       ctx.font = `500 13px ${color("--font-label")}`;
       ctx.textAlign = "center";
-      for (const n of s.nodes.filter((n) => n.hub)) {
-        const p = pos.get(n);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillText(n.id, p.x, p.y - 12);
+      pickReps();
+      const hubs = s.nodes.filter((n) => n.hub);
+      for (const n of hubs) {
+        const p = pos.get(n), img = hubImg(n), r = hubR(n);
+        if (img) {
+          const iw = img.naturalWidth, ih = img.naturalHeight, side = Math.min(iw, ih);
+          ctx.save();
+          ctx.shadowColor = "rgba(0, 0, 0, 0.18)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          ctx.save();
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.clip();
+          ctx.drawImage(img, (iw - side) / 2, (ih - side) / 2, side, side, p.x - r, p.y - r, r * 2, r * 2);
+          ctx.restore();
+        } else {
+          ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+        }
       }
+      // Labels last, with a white outline, so no thumbnail or line covers them.
+      ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.strokeStyle = color("--white");
+      for (const n of hubs) {
+        const p = pos.get(n), y = p.y - hubR(n) - 8;
+        ctx.strokeText(n.id, p.x, y); ctx.fillText(n.id, p.x, y);
+      }
+      ctx.lineWidth = 1;
       if (s.hover?.entry.title) {
         const p = pos.get(s.hover);
         ctx.fillStyle = color("--black");
@@ -356,7 +436,7 @@ export default function Graph() {
         drag.node.pinned = true;
         drag.node.x = (s.mouse.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x;
         drag.node.y = (s.mouse.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
-        s.heat = Math.max(s.heat ?? 0, 0.3); // wake the layout so neighbours follow
+        s.heat = Math.max(s.heat ?? 0, 0.6); // wake the layout so neighbours follow
       } else {
         s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
       }
@@ -390,78 +470,97 @@ export default function Graph() {
   return (
     <div className="stage">
       <canvas ref={canvasRef} className="graph" />
-      <div className="tag-search glass">
-        <p className="tag-status">
-          {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-            : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} tags`}
-        </p>
-        <form onSubmit={(e) => { e.preventDefault(); addTag(query); }} role="search">
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-            <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
-          </svg>
-          <input list="axia-tags" value={query} placeholder="Search tags (e.g. Chrome, Diffused)" aria-label="Search tags"
-            onChange={(e) => (tags.some(([t]) => t === e.target.value) ? addTag(e.target.value) : setQuery(e.target.value))} />
-          <datalist id="axia-tags">
-            {tags.map(([t, n]) => <option key={t} value={t}>{n}</option>)}
-          </datalist>
-        </form>
-        {selected.length > 0 && (
-          <div className="tag-chips">
-            {selected.map((t) => (
-              <button key={t} type="button" className="chip on" aria-label={`Remove ${t}`}
-                onClick={() => setSelected(selected.filter((x) => x !== t))}>{t} ×</button>
-            ))}
-            <button type="button" className="btn" onClick={() => setSelected([])}>Clear</button>
-          </div>
-        )}
-      </div>
-      {detail && (
-        <aside className="detail" aria-label="Selected reference">
-          <div className="detail-bar">
-            <span>{fieldNames(detail).join(" · ")}</span>
-            <button type="button" className="btn" onClick={closeDetail}>Close ×</button>
-          </div>
-          <img src={detail.image} alt={detail.title || "Reference image"} />
-          {detail.title && <h2>{detail.title}</h2>}
-          {!detail.tags.length && <p>Analysing… tags will appear here.</p>}
-          <div className="detail-tags">
-            {detail.tags.map((t) => (
-              <button key={t} type="button" className={selected.includes(t) ? "chip on" : "chip"}
-                title={selected.includes(t) ? "Remove this tag filter" : "Filter the graph by this tag"}
-                onClick={() => (selected.includes(t) ? setSelected(selected.filter((x) => x !== t)) : addTag(t))}>{t}</button>
-            ))}
-          </div>
-          {detail.url && (
-            <a href={detail.url} target="_blank" rel="noopener noreferrer" className="btn primary detail-source">
-              View source on {hostOf(detail.url)} ↗
-            </a>
+      <div className="side">
+        <div className="tag-search glass">
+          <p className="tag-status">
+            {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
+              : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} tags`}
+          </p>
+          <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTag(suggestions[active]?.[0]); }} role="search">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
+            </svg>
+            <input value={query} placeholder={selected.length ? "Add another tag" : "Search tags (e.g. Chrome, Diffused)"}
+              aria-label="Search tags" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
+              aria-controls="tag-suggest" aria-activedescendant={showSuggest ? `tag-suggest-${active}` : undefined}
+              onChange={(e) => { setQuery(e.target.value); setActive(0); setSuggestOpen(true); }}
+              onFocus={() => setSuggestOpen(true)} onClick={() => setSuggestOpen(true)}
+              onBlur={() => setSuggestOpen(false)} onKeyDown={onSearchKey} />
+            {showSuggest && (
+              <ul id="tag-suggest" className="suggest" role="listbox" aria-label="Tag suggestions">
+                <li className="suggest-head" role="presentation">{q ? "Tags" : selected.length ? "Related tags" : "Popular tags"}</li>
+                {suggestions.map(([t, n], i) => {
+                  const at = q ? t.toLowerCase().indexOf(q) : -1;
+                  return (
+                    <li key={t} id={`tag-suggest-${i}`} role="option" aria-selected={i === active}
+                      onMouseEnter={() => setActive(i)}
+                      onMouseDown={(e) => { e.preventDefault(); addTag(t); }}>
+                      <span>{at < 0 ? t : <>{t.slice(0, at)}<mark>{t.slice(at, at + q.length)}</mark>{t.slice(at + q.length)}</>}</span>
+                      <span className="suggest-count">{n}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </form>
+          {selected.length > 0 && (
+            <div className="tag-chips">
+              {selected.map((t) => (
+                <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
+                  onClick={() => setSelected(selected.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
+              ))}
+              {selected.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
+            </div>
           )}
-        </aside>
-      )}
-      <details className="tuning glass" open hidden={!!detail}>
-        <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
-        <div className="segmented" role="group" aria-label="Group the graph by">
-          {Object.keys(GROUP_BY).map((by) => (
-            <button key={by} type="button" aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
+        </div>
+        {detail && (
+          <section className="detail glass" aria-label="Selected reference">
+            <div className="detail-bar">
+              <span>{fieldNames(detail).join(" · ")}</span>
+              <button type="button" className="btn" onClick={closeDetail}>Close ×</button>
+            </div>
+            <img src={detail.image} alt={detail.title || "Reference image"} />
+            {detail.title && <h2>{detail.title}</h2>}
+            {!detail.tags.length && <p>Analysing… tags will appear here.</p>}
+            <div className="detail-tags">
+              {detail.tags.map((t) => (
+                <button key={t} type="button" className={selected.includes(t) ? "chip on" : "chip"}
+                  title={selected.includes(t) ? "Remove this tag filter" : "Filter the graph by this tag"}
+                  onClick={() => (selected.includes(t) ? setSelected(selected.filter((x) => x !== t)) : addTag(t))}>{t}</button>
+              ))}
+            </div>
+            {detail.url && (
+              <a href={detail.url} target="_blank" rel="noopener noreferrer" className="btn primary detail-source">
+                View source on {hostOf(detail.url)} ↗
+              </a>
+            )}
+          </section>
+        )}
+        <details className="tuning glass" open={tuningOpen} onToggle={(e) => setTuningOpen(e.currentTarget.open)}>
+          <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
+          <div className="segmented" role="group" aria-label="Group the graph by">
+            {Object.keys(GROUP_BY).map((by) => (
+              <button key={by} type="button" aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
+            ))}
+          </div>
+          {TUNING.map((p) => (
+            <label key={p.key}>
+              <span>{p.label}</span>
+              <output>{tune[p.key]}</output>
+              <input type="range" min={p.min} max={p.max} step={p.step} value={tune[p.key]}
+                style={{ "--p": `${((tune[p.key] - p.min) / (p.max - p.min)) * 100}%` }}
+                onChange={(e) => setParam(p.key, Number(e.target.value))} />
+            </label>
           ))}
-        </div>
-        {TUNING.map((p) => (
-          <label key={p.key}>
-            <span>{p.label}</span>
-            <output>{tune[p.key]}</output>
-            <input type="range" min={p.min} max={p.max} step={p.step} value={tune[p.key]}
-              style={{ "--p": `${((tune[p.key] - p.min) / (p.max - p.min)) * 100}%` }}
-              onChange={(e) => setParam(p.key, Number(e.target.value))} />
-          </label>
-        ))}
-        <div className="tuning-actions">
-          <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
-          <button type="button" className="btn" title="Reset the sliders and unpin dots you moved"
-            onClick={() => { setTune(DEFAULTS); try { localStorage.removeItem(STORE); } catch {} unpinAll(); }}>
-            Reset
-          </button>
-        </div>
-      </details>
+          <div className="tuning-actions">
+            <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
+            <button type="button" className="btn" title="Reset the sliders and unpin dots you moved"
+              onClick={() => { setTune(DEFAULTS); try { localStorage.removeItem(STORE); } catch {} unpinAll(); }}>
+              Reset
+            </button>
+          </div>
+        </details>
+      </div>
       {empty && online && (
         <div className="empty">
           <h1>Nothing here yet</h1>

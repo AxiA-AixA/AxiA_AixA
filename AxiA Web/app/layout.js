@@ -13,10 +13,12 @@ export default function RootLayout({ children }) {
       <body>
         <nav className="nav">
           <Link href="/" className="logo">AxiA</Link>
-          <NavLink href="/reference" className="btn">Reference</NavLink>
-          <NavLink href="/lab" className="btn">Lab</NavLink>
-          <Link href="#" className="btn primary">Sign In</Link>
-          <NavLink href="/how" className="btn" aria-label="How AxiA works">?</NavLink>
+          <div className="nav-menu glass">
+            <NavLink href="/reference" className="btn">Reference</NavLink>
+            <NavLink href="/lab" className="btn">Lab</NavLink>
+            <NavLink href="/how" className="btn">About</NavLink>
+            <Link href="#" className="btn primary">Sign In</Link>
+          </div>
         </nav>
         <main>{children}</main>
       </body>

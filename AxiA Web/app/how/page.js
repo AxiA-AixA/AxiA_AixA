@@ -1,4 +1,4 @@
-export const metadata = { title: "How it works · AxiA" };
+export const metadata = { title: "About · AxiA" };
 
 // The AxiA pipeline, step by step. status: "done" = works in this test build,
 // "next" = not built yet.
