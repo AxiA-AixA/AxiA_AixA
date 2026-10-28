@@ -321,7 +321,7 @@ export default function Graph() {
       ctx.clearRect(0, 0, w, h);
 
       const pos = new Map(s.nodes.map((n) => [n, toScreen(n)]));
-      ctx.strokeStyle = color("--grey");
+      ctx.strokeStyle = color("--edge");
       ctx.lineWidth = 1;
       const edges = (n) => {
         for (const p of n.parents ?? []) {

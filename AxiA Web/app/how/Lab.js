@@ -8,10 +8,10 @@ const tests = [
   { n: 7, title: "Designer & client interviews" },
 ];
 
-// The Lab tab of the Reference page.
+// Lab: the test list, shown under the About description.
 export default function Lab() {
   return (
-    <section className="lab">
+    <section className="lab" id="lab">
       <h1>Lab</h1>
       <p>Test 1–7. Each test gets its own page here when it starts.</p>
       <ul className="tests">

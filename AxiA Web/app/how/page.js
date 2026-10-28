@@ -1,3 +1,5 @@
+import Lab from "./Lab";
+
 export const metadata = { title: "About · AxiA" };
 
 // The AxiA pipeline, step by step. status: "done" = works in this test build,
@@ -64,6 +66,15 @@ const STATUS = { done: "Works", next: "Planned" };
 
 export default function How() {
   return (
+    <>
+    <header className="brand">
+      <svg viewBox="0 0 1000 383.7" fill="currentColor" role="img" aria-label="AxiA">
+        <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z" />
+        <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z" />
+      </svg>
+      <p className="slogan">AxiA, every reference in relation</p>
+      <p className="concept">AxiA weaves scattered references into relationships, turning taste that words could never settle into a standard people can see together.</p>
+    </header>
     <section className="how">
       <h1>How AxiA works</h1>
       <p>AxiA gathers your scattered saved posts in one place, tags them by the same rules with AI, and shows them as a relationship map.</p>
@@ -97,6 +108,8 @@ export default function How() {
 
       <Figure />
     </section>
+    <Lab />
+    </>
   );
 }
 

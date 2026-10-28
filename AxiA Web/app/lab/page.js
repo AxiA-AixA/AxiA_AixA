@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Lab is now a tab of the Reference page.
+// Lab now sits under the About page.
 export default function Lab() {
-  redirect("/reference?view=lab");
+  redirect("/how#lab");
 }

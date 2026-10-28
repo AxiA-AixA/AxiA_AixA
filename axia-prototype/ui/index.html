@@ -98,6 +98,10 @@
   .note { border-radius:8px; background:rgba(215,0,21,.08); color:var(--bad); padding:10px 12px; font-size:13px; margin:12px 0; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   .row input[type=password] { width:auto; flex:1; min-width:160px; }
+  .card.sel img, .groupgrid img.sel { outline:2px solid var(--black); outline-offset:2px; }
+  #selbar { position:fixed; z-index:20; left:50%; bottom:24px; transform:translateX(-50%); display:flex; gap:8px; align-items:center; padding:6px 6px 6px 16px; border-radius:980px; background:rgba(44,44,46,.86); box-shadow:var(--glass-edge); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); }
+  #selbar[hidden] { display:none; }
+  #selcount { font-size:13px; color:var(--muted); margin-right:8px; }
   @media (max-width:800px) { .wrap { grid-template-columns:1fr; } .dlg { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -128,6 +132,7 @@
   </main>
 </div>
 
+<div id="selbar" hidden><span id="selcount"></span><button id="selall">Select all shown</button><button id="selclear">Clear</button><button class="primary" id="selretag">Re-analyse</button></div>
 <dialog id="detail"></dialog>
 <dialog id="settings"><div class="set">
   <h2>AI models</h2>

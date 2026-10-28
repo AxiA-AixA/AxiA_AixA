@@ -4,6 +4,7 @@ const api = (p, body) => fetch(p, body === undefined ? {} : {method: "POST", hea
 const FIELD_NAMES = {"3d": "3D", graphic: "Graphic", typography: "Typography", painting: "Painting", photo: "Photo", package: "Package", video: "Video", ui_ux: "UI/UX", architecture: "Architecture", editorial: "Editorial", ai_image: "AI Image"};
 const UNSORTED = "Unsorted";
 const fk = f => FIELD_NAMES[f] || f || UNSORTED;
+let sel = new Set(), anchor = null;  // Finder-style: click selects one, ⌘/Ctrl-click toggles, Shift-click adds a range, double-click opens
 let L = {items: []}, view = "grid", filt = {state: "all", field: null, src: null, tag: null, q: ""}, lastSig = "";
 
 async function load() {
@@ -64,8 +65,38 @@ function draw() {
     items.forEach(i => [].concat(key(i)).forEach(k => (g[k] = g[k] || []).push(i)));  // an item with several types shows under each
     $("#out").innerHTML = Object.entries(g).sort((a, b) => b[1].length - a[1].length).map(([k, arr]) => `<div class="group"><h3>${esc(k)} <span>${arr.length}</span></h3><div class="groupgrid">${arr.map(i => `<img loading="lazy" src="/img/${i.file}" data-id="${i.id}">`).join("")}</div></div>`).join("");
   }
-  document.querySelectorAll("[data-id]").forEach(el => el.onclick = () => openDetail(el.dataset.id));
+  const els = [...document.querySelectorAll("[data-id]")], order = els.map(el => el.dataset.id);
+  els.forEach((el, i) => {
+    el.onmousedown = e => { if (e.shiftKey) e.preventDefault(); };  // no text selection on Shift-click
+    el.onclick = e => {
+      const id = el.dataset.id;
+      if (e.shiftKey && anchor && order.includes(anchor)) {
+        const a = order.indexOf(anchor);
+        order.slice(Math.min(a, i), Math.max(a, i) + 1).forEach(x => sel.add(x));
+      } else if (e.metaKey || e.ctrlKey) {
+        sel.has(id) ? sel.delete(id) : sel.add(id); anchor = id;
+      } else { sel = new Set([id]); anchor = id; }
+      drawSel();
+    };
+    el.ondblclick = () => openDetail(el.dataset.id);
+  });
+  drawSel();
 }
+
+function drawSel() {
+  document.querySelectorAll("[data-id]").forEach(el => el.classList.toggle("sel", sel.has(el.dataset.id)));
+  $("#selbar").hidden = !sel.size && filt.state !== "failed";
+  $("#selcount").textContent = sel.size ? `${sel.size} selected` : "Click to select · ⌘-click to add · Shift-click for a range · Double-click to open";
+  $("#selretag").disabled = $("#selclear").disabled = !sel.size;
+}
+$("#selall").onclick = () => { L.items.filter(i => pass(i)).forEach(i => sel.add(i.id)); drawSel(); };
+$("#selclear").onclick = () => { sel.clear(); anchor = null; drawSel(); };
+$("#selretag").onclick = async () => {
+  const r = await api("/api/retag", {ids: [...sel]});
+  $("#status").textContent = `Re-analysing ${r.queued}`; sel.clear(); anchor = null; lastSig = ""; drawSel();
+};
+$("#out").onclick = e => { if (!e.target.closest("[data-id]") && sel.size) $("#selclear").click(); };  // click on empty space clears
+document.addEventListener("keydown", e => { if (e.key === "Escape" && sel.size && !document.querySelector("dialog[open]")) $("#selclear").click(); });
 function card(i) {
   const badge = i.status === "tagged" ? fieldsOf(i).map(f => `<span class="badge">${esc(fk(f))}</span>`).join("") : i.status === "failed" ? '<span class="badge f">Failed</span>' : '<span class="badge q">Analysing</span>';
   return `<div class="card" data-id="${i.id}"><img loading="lazy" src="/img/${i.file}"><div class="meta">${badge}<span class="src">${esc(i.source || "")}</span><div class="tags">${esc(tagsOf(i).slice(0, 6).join(" · "))}</div></div></div>`;
