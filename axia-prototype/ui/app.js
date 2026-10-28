@@ -80,7 +80,7 @@ function openDetail(id) {
     <div class="row" style="justify-content:space-between"><b>${esc(i.title || "Untitled")}</b><button class="ghost" id="dclose">Close ×</button></div>
     ${i.page_url ? `<p class="tags"><a href="${esc(i.page_url)}" target="_blank" rel="noopener">Open source (${esc(i.source)}) ↗</a></p>` : ""}
     ${i.status === "failed" ? `<div class="note">Analysis failed: ${esc(i.error || "")}</div>` : ""}
-    <label>Project type (up to 3)</label><div class="row">${fields.map(f => `<label class="row" style="margin:0;font-size:14px;color:var(--black)"><input type="checkbox" data-f="${esc(f)}" style="width:auto" ${fieldsOf(i).includes(f) ? "checked" : ""}>${esc(fk(f))}</label>`).join("")}</div>
+    <label>Project type (up to 3)</label><div class="row">${fields.map(f => `<label class="row" style="margin:0;font-size:13px;color:var(--black)"><input type="checkbox" data-f="${esc(f)}" style="width:auto" ${fieldsOf(i).includes(f) ? "checked" : ""}>${esc(fk(f))}</label>`).join("")}</div>
     <label>AI tags</label><div class="chips">${(i.tags || []).map(t => `<span data-t="${esc(t)}">${esc(t)}</span>`).join("") || '<span class="tags">None</span>'}</div>
     <label>My tags (comma separated)</label><input id="dtags" value="${esc((i.user_tags || []).join(", "))}">
     <label>Group</label><input id="dgroup" value="${esc(i.group_name || "")}">

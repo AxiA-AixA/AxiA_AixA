@@ -7,15 +7,15 @@ import { hostOf } from "@/lib/links";
 // Display values, tunable from the panel under the header. Find good ones, then
 // bake them in as the defaults here.
 const TUNING = [
-  { key: "spread", label: "Spread (dot repulsion)", min: 20, max: 600, step: 10, value: 120 },
-  { key: "dot", label: "Dot size", min: 2, max: 12, step: 0.5, value: 5 },
-  { key: "showAt", label: "Image shows from radius (px)", min: 3, max: 40, step: 1, value: 7 },
-  { key: "lens", label: "Lens reach (px)", min: 40, max: 400, step: 10, value: 150 },
-  { key: "lensGain", label: "Lens strength", min: 0, max: 8, step: 0.1, value: 3 },
+  { key: "spread", label: "Spread (dot repulsion)", min: 20, max: 600, step: 10, value: 400 },
+  { key: "dot", label: "Dot size", min: 2, max: 12, step: 0.5, value: 12 },
+  { key: "showAt", label: "Image shows from radius (px)", min: 3, max: 40, step: 1, value: 5 },
+  { key: "lens", label: "Lens reach (px)", min: 40, max: 400, step: 10, value: 400 },
+  { key: "lensGain", label: "Lens strength", min: 0, max: 8, step: 0.1, value: 5 },
   { key: "hover", label: "Hover size (px)", min: 20, max: 160, step: 2, value: 60 },
-  { key: "corner", label: "Corner radius when large (px)", min: 0, max: 30, step: 1, value: 6 },
+  { key: "corner", label: "Corner radius when large (px)", min: 0, max: 30, step: 1, value: 10 },
 ];
-const HUB_DOTS = 4; // hub thumbnail circle = this × "Dot size" (radius, screen px)
+const HUB_DOTS = 2; // hub thumbnail circle = this × "Dot size" (radius, screen px)
 const SIDE_W = 340;    // width of the right-hand panel column (matches .side in globals.css)
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
@@ -33,10 +33,29 @@ const GROUP_BY = {
   Type: fieldNames,
   Tags: (e) => (e.tags.length ? e.tags : ["Untagged"]),
   Group: (e) => [e.group_name || "untagged"],
-  Platform: (e) => [e.url ? hostOf(e.url) : "file"],
+  Platform: (e) => [e.url ? platformOf(e.url) : "file"],
 };
-// Searched tags act as filters: an image shows only if it has every one of them.
-const passes = (e, selected) => selected.every((t) => e.tags.includes(t));
+// Searchable terms of an image: its style tags, plus its project types, group name and platform,
+// so those can be searched and filtered on like tags. KIND remembers which non-tag kind a term is.
+const KIND = new Map();
+// "kr.pinterest.com", "uk.pinterest.com" -> "pinterest.com" (country subdomains are one platform)
+const platformOf = (url) => hostOf(url).replace(/^[a-z]{2}\./, "");
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+function termsOf(e) {
+  if (e._terms) return e._terms;
+  const terms = [...e.tags];
+  const add = (term, kind) => {
+    if (!term || terms.includes(term)) return;
+    terms.push(term);
+    if (!KIND.has(term)) KIND.set(term, kind);
+  };
+  for (const f of e.fields) add(FIELD_NAMES[f] ?? f, "Type");
+  add(e.group_name && cap(e.group_name), "Group");
+  if (e.url) add(platformOf(e.url), "Platform");
+  return (e._terms = terms);
+}
+// Searched terms act as filters: an image shows only if it has every one of them.
+const passes = (e, selected) => selected.every((t) => termsOf(e).includes(t));
 
 export default function Graph() {
   const canvasRef = useRef(null);
@@ -47,6 +66,7 @@ export default function Graph() {
   const [tune, setTune] = useState(DEFAULTS);
   const [groupBy, setGroupBy] = useState("Type");
   const groupRef = useRef(groupBy);
+  const autoTags = useRef(false); // Tags view was picked by a filter, not by the user
   const [tags, setTags] = useState([]); // [[tag, count]] among shown images, for suggestions
   const [query, setQuery] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -93,7 +113,7 @@ export default function Graph() {
         loadImage(node, e.image);
         changed = true;
       } else {
-        if (n.entry.tags.join() !== e.tags.join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
+        if (termsOf(n.entry).join() !== termsOf(e).join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
         n.entry = e;
         if (detailRef.current?.id === e.id) { detailRef.current = e; setDetail(e); } // keep the open panel current
       }
@@ -140,7 +160,7 @@ export default function Graph() {
     s.userCam = false;
     s.heat = Math.max(s.heat ?? 0, heat); // let the layout move again
     const count = {}; // suggest tags of the shown images, so each pick narrows the result
-    for (const n of items) for (const t of n.entry.tags) if (!sel.includes(t)) count[t] = (count[t] ?? 0) + 1;
+    for (const n of items) for (const t of termsOf(n.entry)) if (!sel.includes(t)) count[t] = (count[t] ?? 0) + 1;
     setTags(Object.entries(count).sort((a, b) => b[1] - a[1]));
     setHits(items.length);
   }
@@ -149,8 +169,14 @@ export default function Graph() {
     for (const n of [...s.byId.values(), ...s.hubCache.values()]) n.pinned = false;
     s.heat = 1;
   }
-  function regroup(by) { groupRef.current = by; setGroupBy(by); rebuild(); }
-  function setSelected(next) { selRef.current = next; setSel(next); rebuild(); }
+  function regroup(by) { autoTags.current = false; groupRef.current = by; setGroupBy(by); rebuild(); }
+  function setSelected(next) {
+    selRef.current = next; setSel(next);
+    // Filtering switches the default Type view to Tags; clearing all filters switches back.
+    const by = next.length && groupRef.current === "Type" ? "Tags" : !next.length && autoTags.current ? "Type" : null;
+    if (by) { autoTags.current = by === "Tags"; groupRef.current = by; setGroupBy(by); }
+    rebuild();
+  }
 
   // Suggestions while typing: tags containing the text, those starting with it first, then by use.
   // `tags` only holds tags of the images still shown, so once filters are set these are the related
@@ -304,7 +330,10 @@ export default function Graph() {
         }
       };
       for (const n of s.nodes) edges(n);
-      if (s.hover) { ctx.strokeStyle = color("--black"); edges(s.hover); } // which tags the hovered image spans
+      ctx.strokeStyle = color("--black"); // white: lines of the hovered and the selected image
+      if (s.hover) edges(s.hover);
+      const picked = detailRef.current && s.byId.get(detailRef.current.id);
+      if (picked && pos.has(picked)) edges(picked);
 
       // Find the hovered dot, then draw dots with a fisheye bump near the cursor.
       const t = tuneRef.current, k = s.cam.k;
@@ -325,7 +354,8 @@ export default function Graph() {
       // A dot is the thumbnail: it grows (eased per node) and, once its radius passes
       // showAt, the image fades in inside it. Small it is a circle; as it grows toward
       // hover size the shape relaxes into a rounded square.
-      const ordered = s.hover ? [...items.filter((n) => n !== s.hover), s.hover] : items;
+      const open = picked && pos.has(picked) ? picked : null; // image shown in the detail panel
+      const ordered = [...items.filter((n) => n !== s.hover && n !== open), ...new Set([s.hover, open])].filter(Boolean); // hovered and open on top
       const dotMax = t.dot * k * (1 + t.lensGain);
       for (const n of ordered) {
         const p = pos.get(n);
@@ -335,15 +365,16 @@ export default function Graph() {
         n.r = n.r == null ? target : n.r + (target - n.r) * 0.25;
         const r = n.r;
 
-        ctx.fillStyle = color("--black");
+        // white near the cursor (and when hovered or open); elsewhere the same grey as the lines
+        ctx.fillStyle = color(lensOf(n) > 0 || n === s.hover || n === open ? "--black" : "--grey");
         ctx.globalAlpha = n.img ? 1 : 0.25; // no thumbnail yet: faint dot
         ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
 
         const show = n.img ? Math.min(1, Math.max(0, (r - t.showAt) / 4)) : 0; // 4px fade-in
+        const square = show > 0 ? Math.min(1, Math.max(0, (r - t.showAt) / Math.max(1, t.hover - t.showAt))) : 0;
+        const corner = r + (Math.min(t.corner, r) - r) * square; // circle → rounded square
         if (show > 0) {
-          const square = Math.min(1, Math.max(0, (r - t.showAt) / Math.max(1, t.hover - t.showAt)));
-          const corner = r + (Math.min(t.corner, r) - r) * square; // circle → rounded square
           const iw = n.img.naturalWidth, ih = n.img.naturalHeight, side = Math.min(iw, ih);
           ctx.save();
           ctx.globalAlpha = show;
@@ -351,18 +382,15 @@ export default function Graph() {
           ctx.drawImage(n.img, (iw - side) / 2, (ih - side) / 2, side, side, p.x - r, p.y - r, r * 2, r * 2);
           ctx.restore();
         }
-      }
-
-      const open = detailRef.current && s.byId.get(detailRef.current.id);
-      if (open && pos.has(open)) { // ring around the image shown in the detail panel
-        const p = pos.get(open);
-        ctx.strokeStyle = color("--black"); ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(p.x, p.y, (open.r ?? 4) + 4, 0, Math.PI * 2); ctx.stroke();
-        ctx.lineWidth = 1;
+        if (n === open) { // border that follows the thumbnail's shape (circle → rounded square)
+          ctx.strokeStyle = color("--black"); ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.roundRect(p.x - r - 1, p.y - r - 1, r * 2 + 2, r * 2 + 2, corner + 1); ctx.stroke();
+          ctx.lineWidth = 1;
+        }
       }
 
       ctx.fillStyle = color("--black");
-      ctx.font = `500 13px ${color("--font-label")}`;
+      ctx.font = `500 12px ${color("--font-label")}`;
       ctx.textAlign = "center";
       pickReps();
       const hubs = s.nodes.filter((n) => n.hub);
@@ -392,12 +420,12 @@ export default function Graph() {
       if (s.hover?.entry.title) {
         const p = pos.get(s.hover);
         ctx.fillStyle = color("--black");
-        ctx.font = `500 14px ${color("--font")}`;
+        ctx.font = `500 13px ${color("--font")}`;
         ctx.fillText(s.hover.entry.title.slice(0, 60), p.x, p.y + Math.max(t.hover, t.dot * k) + 20);
       }
       if (s.hover?.entry.tags?.length) {
         const p = pos.get(s.hover);
-        ctx.font = `500 12px ${color("--font")}`;
+        ctx.font = `400 11px ${color("--font")}`;
         ctx.fillText(s.hover.entry.tags.join(" · "), p.x, p.y + Math.max(t.hover, t.dot * k) + 38);
       }
       canvas.style.cursor = s.dragged ? "grabbing" : s.hover || hubAt(s.mouse) ? "pointer" : "grab";
@@ -474,13 +502,13 @@ export default function Graph() {
         <div className="tag-search glass">
           <p className="tag-status">
             {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} tags`}
+              : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} terms`}
           </p>
           <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTag(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
             </svg>
-            <input value={query} placeholder={selected.length ? "Add another tag" : "Search tags (e.g. Chrome, Diffused)"}
+            <input value={query} placeholder={selected.length ? "Add another filter" : "Search tags, types, groups, platforms"}
               aria-label="Search tags" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
               aria-controls="tag-suggest" aria-activedescendant={showSuggest ? `tag-suggest-${active}` : undefined}
               onChange={(e) => { setQuery(e.target.value); setActive(0); setSuggestOpen(true); }}
@@ -496,7 +524,7 @@ export default function Graph() {
                       onMouseEnter={() => setActive(i)}
                       onMouseDown={(e) => { e.preventDefault(); addTag(t); }}>
                       <span>{at < 0 ? t : <>{t.slice(0, at)}<mark>{t.slice(at, at + q.length)}</mark>{t.slice(at + q.length)}</>}</span>
-                      <span className="suggest-count">{n}</span>
+                      <span className="suggest-count">{KIND.get(t) && <em>{KIND.get(t)} · </em>}{n}</span>
                     </li>
                   );
                 })}

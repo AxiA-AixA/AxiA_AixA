@@ -118,6 +118,7 @@ def add_image(data, *, image_url="", page_url="", title="", source=""):
         it = {"id": sha, "file": f"{sha}{ext}", "image_url": image_url, "page_url": page_url, "pages": [page_url] if page_url else [],
               "title": title[:200], "source": source or platform_of(page_url or image_url), "added": time.strftime("%Y-%m-%d %H:%M:%S"),
               "status": "queued" if settings()["auto_tag"] else "new", "fields": [], "field": None, "tags": [], "group_name": "", "user_tags": []}
+        with_colors(it)
         lib["items"][sha] = it
         save_library(lib)
     if it["status"] == "queued":
@@ -139,6 +140,125 @@ def meta(htmltext, prop):
     m = re.search(r'<meta[^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\'][^>]+content=["\']([^"\']+)', htmltext, re.I) or \
         re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']' + re.escape(prop) + r'["\']', htmltext, re.I)
     return html.unescape(m.group(1)) if m else ""
+
+
+# ---------- colour tags (worked out here with Pillow, no AI) ----------
+COLORS = ("Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Brown", "Black", "White", "Grey")
+
+def colour_name(h, s, v):
+    """Pillow HSV (0-255 each) → one of COLORS."""
+    h, s, v = h * 360 / 255, s / 255, v / 255
+    if v < 0.2: return "Black"
+    if s < 0.15 or (s < 0.3 and v < 0.45): return "White" if v > 0.85 and s < 0.15 else "Grey"
+    if h < 15 or h >= 345: return "Pink" if s < 0.5 and v > 0.7 else "Red"
+    if h < 45: return "Brown" if v < 0.6 else "Orange"
+    if h < 70: return "Yellow"
+    if h < 165: return "Green"
+    if h < 195: return "Teal"
+    if h < 255: return "Blue"
+    if h < 290: return "Purple"
+    return "Pink"
+
+def colors_of(path, share=0.12, top=3):
+    """Main colours of an image as tag names: those covering at least `share` of it, biggest first."""
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            im = im.convert("RGB"); im.thumbnail((64, 64))
+            b = im.convert("HSV").tobytes()
+    except Exception:
+        return []  # no Pillow, or not a readable image
+    count = {}
+    for i in range(0, len(b), 3):
+        n = colour_name(b[i], b[i + 1], b[i + 2]); count[n] = count.get(n, 0) + 1
+    total = len(b) // 3
+    return [n for n, c in sorted(count.items(), key=lambda x: -x[1]) if c / total >= share][:top]
+
+
+def with_colors(it):
+    """Put the image's main colours into its tags (replacing old colour tags)."""
+    it["colors"] = colors_of(IMG / it["file"])
+    it["tags"] = [t for t in it.get("tags", []) if t not in COLORS] + it["colors"]
+
+
+def backfill_colors():
+    """Colour tags for items saved before colour tags existed. Runs once in the background."""
+    todo = [(sid, it["file"]) for sid, it in library()["items"].items() if "colors" not in it]
+    done = {}
+    for n, (sid, f) in enumerate(todo, 1):
+        done[sid] = colors_of(IMG / f)
+        if len(done) >= 50 or n == len(todo):
+            with LOCK:
+                lib = library()
+                for sid2, cols in done.items():
+                    it = lib["items"].get(sid2)
+                    if it and "colors" not in it:
+                        it["colors"] = cols
+                        it["tags"] = [t for t in it.get("tags", []) if t not in COLORS] + cols
+                save_library(lib)
+            done.clear()
+
+
+def image_size(path):
+    """(width, height) from a JPEG/PNG/WebP header, or None. No Pillow needed."""
+    import struct
+    b = Path(path).read_bytes()[:512_000]
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return struct.unpack(">II", b[16:24])
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP" and b[12:16] == b"VP8 ":
+        w, h = struct.unpack("<HH", b[26:30]); return w & 0x3FFF, h & 0x3FFF
+    i = 2
+    while i + 9 < len(b) and b[:2] == b"\xff\xd8":
+        if b[i] != 0xFF:
+            i += 1; continue
+        if b[i + 1] in (0xC0, 0xC1, 0xC2):
+            h, w = struct.unpack(">HH", b[i + 5:i + 9]); return w, h
+        i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
+    return None
+
+
+def cropped_instagram():
+    """Instagram posts whose stored image is the square centre-crop Instagram serves as a link
+    preview (top/bottom of 4:5 posts cut off). The extension re-fetches these in the user's browser."""
+    out = []
+    for it in library()["items"].values():
+        url = it.get("page_url") or ""
+        if it.get("full") or not re.search(r"instagram\.com/(p|reel)/", url):
+            continue
+        size = image_size(IMG / it["file"])
+        if size and abs(size[0] - size[1]) <= 2:
+            out.append({"id": it["id"], "page_url": url})
+    return out
+
+
+def replace_image(item_id, image_url):
+    """Swap an item's image for the original from its post. Keeps id, tags and everything else."""
+    with LOCK:
+        it = library()["items"].get(item_id)
+    if not it:
+        raise ValueError("No such item")
+    if image_url.startswith("data:"):
+        data = base64.b64decode(image_url.split(",", 1)[1])
+    else:
+        data, ctype, _ = fetch(image_url, referer=it.get("page_url") or None)
+        if "text/html" in ctype:
+            raise ValueError("That's a web page, not an image URL")
+    if len(data) < 2000:
+        raise ValueError("Image is too small or empty")
+    ext = ".png" if data[:4] == b"\x89PNG" else ".webp" if data[8:12] == b"WEBP" else ".jpg"
+    name = f"{item_id}-full{ext}"
+    (IMG / name).write_bytes(data)
+    with LOCK:
+        lib = library()
+        it = lib["items"].get(item_id)
+        if not it:
+            return
+        old = it["file"]
+        it.update(file=name, full=True)
+        with_colors(it)
+        save_library(lib)
+    if old != name:
+        (IMG / old).unlink(missing_ok=True)
 
 
 def add_from_link(url):
@@ -194,8 +314,8 @@ def tag_worker():
     while True:
         sid = Q.get()
         try:
-            lib = library()
-            it = lib["items"].get(sid)
+            with LOCK:  # read only while no one writes: a half-replaced file reads as empty and the item gets dropped
+                it = library()["items"].get(sid)
             if not it or it.get("status") not in ("queued", "retry"):
                 continue
             st = settings()
@@ -214,6 +334,7 @@ def tag_worker():
                     it.update(status="tagged", fields=res["fields"], field=res["field"], tags=res["tags"], group_name=res["group_name"],
                               model=res.get("model"), tagged=time.strftime("%Y-%m-%d %H:%M:%S"), error=None,
                               tokens=[res.get("in_tokens"), res.get("out_tokens")], latency_ms=res.get("latency_ms"))
+                    with_colors(it)
                 save_library(lib)
         except Exception as e:
             STATUS["note"] = f"Error: {e}"
@@ -288,6 +409,8 @@ class H(BaseHTTPRequestHandler):
             lib = library()
             items = sorted(lib["items"].values(), key=lambda x: x["added"], reverse=True)
             return self.send({"items": items, "queue": Q.qsize(), "status": STATUS, "fields": list(court().get("fields", {}))})
+        if p == "/api/cropped":  # 확장 프로그램: 잘린 인스타 이미지 목록
+            return self.send({"items": cropped_instagram()})
         if p == "/api/settings":
             st = settings()
             st["keys"] = {k: bool(v) for k, v in st["keys"].items()}
@@ -354,6 +477,9 @@ class H(BaseHTTPRequestHandler):
                 jsave(SETTINGS, st)
                 requeued = requeue(statuses=("failed",)) if any(data.get("keys", {}).values()) else 0
                 return self.send({"ok": True, "requeued": requeued})
+            if p == "/api/replace":  # 확장 프로그램: 게시물 원본 이미지로 교체
+                replace_image(data["id"], data["image_url"])
+                return self.send({"ok": True})
             if p == "/api/retag":
                 return self.send({"ok": True, "queued": requeue(ids=data.get("ids"), statuses=tuple(data.get("statuses", ["failed"])))})
             if p == "/api/item":
@@ -389,6 +515,7 @@ def main():
     for _ in range(2):
         threading.Thread(target=tag_worker, daemon=True).start()
     requeue(statuses=("queued",))
+    threading.Thread(target=backfill_colors, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), H)
     url = f"http://localhost:{a.port}"
     print(f"Axia 실행 중 → {url}\n보관 위치: {DATA}\n이 창을 닫으면 Axia가 꺼져요 (Chrome 확장 '보내기'도 이 창이 켜져 있어야 돼요)")

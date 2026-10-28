@@ -52,6 +52,62 @@ async function startBoard(tabId) {
   toast("보드 가져오는 중", "탭을 화면에 띄워 두세요. 끝나면 알려 드릴게요.");
 }
 
+// ---- 잘린 인스타 이미지를 원본으로 ----
+// Axia가 알려준 게시물(정사각형으로 잘린 미리보기만 있는 것)을 로그인된 이 브라우저의
+// 백그라운드 탭 하나에서 차례로 열고, 화면의 원본 이미지를 Axia로 보내 교체해요.
+// 계정 보호: 한 번에 탭 하나, 게시물 사이 3~7초 쉬기, 연속 5번 실패(로그인 화면·차단 등)면 멈춤.
+const fix = {running: false, stop: false, total: 0, done: 0, fixed: 0, failed: 0, note: ""};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const saveFix = () => chrome.storage.session.set({fix: {...fix}});
+
+function loaded(tabId, timeout = 20000) {
+  return new Promise(resolve => {
+    const done = ok => { chrome.tabs.onUpdated.removeListener(on); clearTimeout(t); resolve(ok); };
+    const on = (id, info) => { if (id === tabId && info.status === "complete") done(true); };
+    const t = setTimeout(() => done(false), timeout);
+    chrome.tabs.onUpdated.addListener(on);
+  });
+}
+
+async function startFix() {
+  if (fix.running) return;
+  const list = await fetch(AXIA + "/api/cropped").then(r => r.json()).catch(() => null);
+  if (!list) return toast("Axia", "Axia 앱이 꺼져 있어요. 컴퓨터에서 Axia를 먼저 실행해 주세요.");
+  Object.assign(fix, {running: true, stop: false, total: list.items.length, done: 0, fixed: 0, failed: 0, note: ""});
+  saveFix();
+  if (!list.items.length) { fix.running = false; saveFix(); return toast("Axia", "잘린 인스타 이미지가 없어요."); }
+  const tab = await chrome.tabs.create({url: "about:blank", active: false});
+  let streak = 0;
+  for (const it of list.items) {
+    if (fix.stop) { fix.note = "멈췄어요"; break; }
+    let ok = false;
+    try {
+      await chrome.tabs.update(tab.id, {url: it.page_url});
+      await loaded(tab.id);
+      for (let i = 0; i < 3 && !ok; i++) { // 이미지가 그려질 때까지 조금 기다려요
+        await sleep(2000 + Math.random() * 1500);
+        const r = await chrome.tabs.sendMessage(tab.id, {type: "AXIA_POST_IMAGE"}).catch(() => null);
+        if (r && r.image_url) {
+          const res = await post("/api/replace", {id: it.id, image_url: r.image_url});
+          ok = !res.error;
+          break;
+        }
+      }
+    } catch (e) { /* 탭이 닫혔거나 페이지 오류 */ }
+    fix.done++; ok ? fix.fixed++ : fix.failed++;
+    streak = ok ? 0 : streak + 1;
+    badge(String(fix.done), "#1d1d1f");
+    saveFix();
+    if (streak >= 5) { fix.note = "연속 5번 실패해서 멈췄어요. 인스타그램 로그인 상태를 확인해 주세요."; break; }
+    await sleep(3000 + Math.random() * 4000);
+  }
+  chrome.tabs.remove(tab.id).catch(() => {});
+  fix.running = false;
+  saveFix();
+  badge("✓", "#1a7f37");
+  toast("원본 이미지 교체 끝", `${fix.fixed}장 교체${fix.failed ? `, ${fix.failed}장 실패` : ""}. ${fix.note}`);
+}
+
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "axia-send") sendOne(tab, info);
   if (info.menuItemId === "axia-board") startBoard(tab.id);
@@ -82,6 +138,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return true;
   }
   if (msg.type === "POPUP_BOARD") { startBoard(msg.tabId); reply({ok: true}); }
+  if (msg.type === "POPUP_FIX") { startFix(); reply({ok: true}); }
+  if (msg.type === "POPUP_FIX_STOP") { fix.stop = true; reply({ok: true}); }
   if (msg.type === "POPUP_PAGE") {
     (async () => {
       const r = await post("/api/add", msg.item);

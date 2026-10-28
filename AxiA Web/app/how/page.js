@@ -4,14 +4,13 @@ export const metadata = { title: "About · AxiA" };
 // "next" = not built yet.
 const steps = [
   {
-    title: "가져오기",
-    en: "Import",
-    body: "인스타그램·핀터레스트·Are.na에 저장한 게시물을 가져와요.",
+    title: "Import",
+    body: "Bring in the posts you saved on Instagram, Pinterest and Are.na.",
     items: [
-      ["링크 붙여넣기 · JSON 파일", "done"],
-      ["인스타그램 '내 정보 다운로드' 파일", "done"],
-      ["크롬 확장 (우클릭 저장, 저장 페이지 읽기)", "next"],
-      ["핀터레스트·Are.na 계정 연결", "next"],
+      ["Paste links · JSON file", "done"],
+      ["Instagram 'Download your information' file", "done"],
+      ["Chrome extension (right-click to save, read saved pages)", "next"],
+      ["Connect Pinterest and Are.na accounts", "next"],
     ],
     out: `instagram.com/p/C1x…
 pinterest.com/pin/112…
@@ -19,27 +18,25 @@ are.na/block/301…`,
     test: "Test 1 · 2",
   },
   {
-    title: "썸네일 가져오기",
-    en: "Preview",
-    body: "각 게시물 페이지를 열어 대표 이미지(og:image)와 제목을 찾고, 썸네일만 저장해요. 원본 이미지는 저장하지 않아요.",
+    title: "Preview",
+    body: "Open each post's page, find its main image (og:image) and title, and keep only a thumbnail. Original images aren't stored.",
     items: [
-      ["페이지에서 썸네일·제목 찾기", "done"],
-      ["썸네일 파일로 저장 (만료 대비)", "done"],
-      ["썸네일 리사이즈 (300px)", "next"],
+      ["Find thumbnail and title on the page", "done"],
+      ["Save thumbnails as files (links expire)", "done"],
+      ["Resize thumbnails (300px)", "next"],
     ],
     out: `{ title: "Studio A — Spring",
   image: "thumb/2ab0….jpg" }`,
     test: "Test 4",
   },
   {
-    title: "AI 분석 · 태그",
-    en: "Tagging",
-    body: "비전 모델이 썸네일을 보고 정해진 태그 목록 안에서 태그를 붙여요. 같은 이미지엔 늘 같은 태그가 나와야 해요.",
+    title: "Tagging",
+    body: "A vision model looks at each thumbnail and picks tags from a fixed tag list. The same image should always get the same tags.",
     items: [
-      ["분야: 3D · 브랜딩 · 포토 · 그래픽 …", "next"],
-      ["스타일 · 무드 · 색 · 소재", "next"],
-      ["그룹 이름 (AI가 정함)", "next"],
-      ["태그에 없는 말로 찾기 (임베딩)", "next"],
+      ["Project type: 3D · Branding · Photo · Graphic …", "next"],
+      ["Style · mood · colour · material", "next"],
+      ["Group names (chosen by the AI)", "next"],
+      ["Search with words that aren't tags (embeddings)", "next"],
     ],
     out: `field: "3d"
 tags: ["warm", "matte",
@@ -47,15 +44,14 @@ tags: ["warm", "matte",
     test: "Test 3 · 5",
   },
   {
-    title: "AxiA에서 보기",
-    en: "Board",
-    body: "저장된 레퍼런스가 관계 지도와 그리드로 정리돼요. 썸네일을 누르면 원래 게시물로 가요.",
+    title: "Board",
+    body: "Your saved references are laid out as a relationship map and a grid. Click a thumbnail to go to the original post.",
     items: [
-      ["네트워크 그래프 (확대·호버로 썸네일)", "done"],
-      ["새로고침해도 유지되는 저장", "done"],
-      ["분류 기준: 플랫폼별", "done"],
-      ["분류 기준: 태그별 · 분야별", "next"],
-      ["태그 안에서 그리드로 찾기", "next"],
+      ["Network graph (thumbnails on zoom and hover)", "done"],
+      ["Storage that survives a refresh", "done"],
+      ["Group by platform", "done"],
+      ["Group by tag · project type", "next"],
+      ["Browse a tag as a grid", "next"],
     ],
     out: `● ── instagram.com
 │     ● ●
@@ -64,20 +60,20 @@ tags: ["warm", "matte",
   },
 ];
 
-const STATUS = { done: "작동", next: "예정" };
+const STATUS = { done: "Works", next: "Planned" };
 
 export default function How() {
   return (
     <section className="how">
-      <h1>AxiA는 이렇게 작동해요</h1>
-      <p>흩어진 저장 게시물을 한곳으로 모으고, AI가 같은 기준으로 태그를 붙여 관계 지도로 보여줘요.</p>
+      <h1>How AxiA works</h1>
+      <p>AxiA gathers your scattered saved posts in one place, tags them by the same rules with AI, and shows them as a relationship map.</p>
 
       <ol className="flow">
         {steps.map((s, i) => (
-          <li key={s.en} className="step">
+          <li key={s.title} className="step">
             <div className="step-head">
               <span className="step-no">{i + 1}</span>
-              <h2>{s.title} <small>{s.en}</small></h2>
+              <h2>{s.title}</h2>
             </div>
             <p>{s.body}</p>
             <ul className="checks">
@@ -95,8 +91,8 @@ export default function How() {
       </ol>
 
       <div className="legend">
-        <span className="pill done">작동</span> 지금 테스트 버전에서 동작
-        <span className="pill next">예정</span> 아직 만들지 않음
+        <span className="pill done">Works</span> In this test build
+        <span className="pill next">Planned</span> Not built yet
       </div>
 
       <Figure />
@@ -128,11 +124,11 @@ function Pill({ x, y, children }) {
 
 function Figure() {
   const cols = [100, 300, 500, 700, 900];
-  const labels = ["저장 게시물", "링크", "썸네일", "AI 태그", "AxiA"];
+  const labels = ["Saved posts", "Links", "Thumbnails", "AI tags", "AxiA"];
   const dots = [[860, 70], [905, 50], [950, 85], [880, 140], [945, 150], [835, 115], [965, 120], [905, 175]];
   return (
     <svg className="figure" viewBox="0 0 1000 260" role="img"
-      aria-label="저장 게시물이 링크, 썸네일, AI 태그를 거쳐 AxiA 그래프가 되는 흐름">
+      aria-label="Saved posts become links, then thumbnails, then AI tags, and finally the AxiA graph">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
           <path d="M0 0 L10 5 L0 10 Z" fill="var(--black)" />

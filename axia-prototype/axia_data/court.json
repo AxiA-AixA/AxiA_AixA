@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 4,
  "note": "한 단어·첫 글자 대문자 태그 (tags.txt)",
  "min_tags": 5,
  "max_tags": 8,
@@ -33,6 +33,11 @@
    "tag": "Figurative",
    "group": "형태·구성",
    "def": ""
+  },
+  {
+   "tag": "Symbol",
+   "group": "형태·구성",
+   "def": "a logo, symbol, emblem, icon, pictogram or sign is shown prominently (as the subject or a clear element)"
   },
   {
    "tag": "Symmetrical",

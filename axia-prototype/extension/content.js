@@ -59,6 +59,20 @@ async function getImage(fallbackSrc) {
   return {image_url: src, page_url: page, title: (alt || og("og:title") || document.title).slice(0, 200), source: location.hostname.replace("www.", "")};
 }
 
+// ---- 인스타 게시물 페이지의 원본 이미지 (잘린 미리보기 교체용) ----
+// 게시물 본문에서 가장 크게 보이는 이미지를 골라 srcset의 가장 큰 원본을 돌려줘요.
+function postImage() {
+  const root = document.querySelector("main article, article, main") || document;
+  let best = null, area = 0;
+  for (const img of root.querySelectorAll("img")) {
+    const r = img.getBoundingClientRect(), a = r.width * r.height;
+    if (a > area && (img.naturalWidth || 0) >= 300) { best = img; area = a; }
+  }
+  if (best) return bestSrc(best);
+  const v = root.querySelector("video[poster]");
+  return v ? v.poster : null;
+}
+
 // ---- 핀터레스트 보드 전체 ----
 let collecting = false;
 function cutoffY() {
@@ -108,6 +122,7 @@ async function collectBoard(limit) {
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "AXIA_GET_IMAGE") { getImage(msg.fallbackSrc).then(reply); return true; }
+  if (msg.type === "AXIA_POST_IMAGE") { reply({image_url: postImage()}); return; }
   if (msg.type === "AXIA_PAGE_INFO") {
     const isBoard = /pinterest\./.test(location.hostname) && !/\/pin\//.test(location.pathname) && location.pathname.split("/").filter(Boolean).length >= 2;
     reply({isBoard, title: document.title, ogImage: upgrade(og("og:image"))});
