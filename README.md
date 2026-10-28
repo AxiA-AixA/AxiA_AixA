@@ -1,3 +1,7 @@
+![Auto Assign](https://github.com/AxiA-AixA/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
+
+![Proof HTML](https://github.com/AxiA-AixA/demo-repository/actions/workflows/proof-html.yml/badge.svg)
+
 # Axia
 
 내가 모아 둔 레퍼런스(인스타 저장함, 핀터레스트 보드 등)를 한곳으로 가져와 AI 태그로 정리하는 도구.
