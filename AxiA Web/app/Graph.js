@@ -19,6 +19,7 @@ const HUB_DOTS = 2; // hub thumbnail circle = this × "Dot size" (radius, screen
 const SIDE_W = 340;    // width of the right-hand panel column (matches .side in globals.css)
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
+const FILTERS = "axia-filters"; // searched tags + view, kept for this browser tab
 
 // Project types (axia-prototype's "field" codes) as shown on the graph.
 const FIELD_NAMES = {
@@ -86,7 +87,17 @@ export default function Graph() {
   // Slider values are remembered per browser so tuning survives a reload.
   useEffect(() => {
     try { setTune({ ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") }); } catch {}
+    // Filters come back after visiting another page (runs before the first library load).
+    try {
+      const f = JSON.parse(sessionStorage.getItem(FILTERS) ?? "null");
+      if (f && GROUP_BY[f.by] && Array.isArray(f.sel)) {
+        selRef.current = f.sel; setSel(f.sel); groupRef.current = f.by; setGroupBy(f.by); autoTags.current = !!f.auto;
+      }
+    } catch {}
   }, []);
+  function saveFilters() {
+    try { sessionStorage.setItem(FILTERS, JSON.stringify({ sel: selRef.current, by: groupRef.current, auto: autoTags.current })); } catch {}
+  }
   function setParam(key, value) {
     const next = { ...tune, [key]: value };
     setTune(next);
@@ -169,12 +180,13 @@ export default function Graph() {
     for (const n of [...s.byId.values(), ...s.hubCache.values()]) n.pinned = false;
     s.heat = 1;
   }
-  function regroup(by) { autoTags.current = false; groupRef.current = by; setGroupBy(by); rebuild(); }
+  function regroup(by) { autoTags.current = false; groupRef.current = by; setGroupBy(by); saveFilters(); rebuild(); }
   function setSelected(next) {
     selRef.current = next; setSel(next);
     // Filtering switches the default Type view to Tags; clearing all filters switches back.
     const by = next.length && groupRef.current === "Type" ? "Tags" : !next.length && autoTags.current ? "Type" : null;
     if (by) { autoTags.current = by === "Tags"; groupRef.current = by; setGroupBy(by); }
+    saveFilters();
     rebuild();
   }
 

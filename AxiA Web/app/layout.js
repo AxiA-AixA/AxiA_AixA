@@ -9,10 +9,11 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: browser dark-mode tools add classes to these tags before React loads
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Adobe Fonts: New Frank 400/700 */}
-        <link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css" />
+        <link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css" suppressHydrationWarning />
       </head>
       <body>
         <nav className="nav">

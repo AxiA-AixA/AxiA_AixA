@@ -12,7 +12,7 @@ export default async function Reference() {
     return (
       <section className="lab">
         <h1>Reference</h1>
-        <p>AI 분석기(axia-prototype)가 꺼져 있어요. axia-prototype 폴더의 Axia-실행-Mac.command를 열고 이 페이지를 새로고침하세요.</p>
+        <p>AI 분석기(axia-prototype)가 꺼져 있어요. axia-prototype 폴더의 Axia-실행-Mac.command(Windows는 Axia-실행-Windows.bat)를 열고 이 페이지를 새로고침하세요.</p>
       </section>
     );
   }
