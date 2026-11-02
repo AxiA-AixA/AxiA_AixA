@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AxiA Waitlist</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Join the AxiA waitlist. Your saved references, tagged by the same rules and shown as a relationship map.">
-<meta property="og:title" content="See your taste. AxiA early access">
-<meta property="og:description" content="AxiA, every reference in relation.">
+<meta name="description" content="AxiA weaves scattered references into relationships, turning taste that words could never settle into a standard people can see together.">
+<meta property="og:title" content="AxiA, every reference in relation">
+<meta property="og:description" content="AxiA weaves scattered references into relationships, turning taste that words could never settle into a standard people can see together.">
 <!-- Adobe Fonts (New Frank), the same kit as AxiA Web. Falls back to Helvetica Neue where it doesn't load. -->
 <link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css">
 <style>
@@ -36,7 +36,7 @@ body {
   font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 40px;
+  padding-block: 40px 0;
 }
 a { color: inherit; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -72,9 +72,10 @@ a { color: inherit; }
   animation: sweep 6s cubic-bezier(.45,0,.55,1) 1.8s infinite;
 }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(127,209,160,0.6); animation: pulse 3s cubic-bezier(.45,0,.55,1) infinite; }
-h1 { margin: 22px 0 0; font-size: clamp(48px, 9vw, 96px); line-height: 0.98; font-weight: 500; letter-spacing: -0.035em; }
-h1 .w { display: inline-block; }
-.sub { margin: 20px 0 0; max-width: 26em; color: var(--muted); font-size: 17px; text-wrap: balance; }
+h1 { margin: 40px 0 0; width: min(448px, 64%); }
+.logotype { display: block; width: 100%; height: auto; color: #fff; }
+.slogan { margin: 32px 0 0; font-size: clamp(19px, 2.4vw, 24px); }
+.sub { margin: 14px 0 0; max-width: 34em; color: var(--muted); font-size: 15px; text-wrap: balance; }
 
 /* Sign-up card */
 .join {
@@ -126,6 +127,20 @@ h1 .w { display: inline-block; }
   display: block; width: 100%; height: auto; aspect-ratio: 1600 / 878; border-radius: 14px; background: #000;
   box-shadow: var(--glass-edge), 0 40px 120px rgba(0, 0, 0, 0.6);
 }
+/* Phones: the video pins while you scroll, turns sideways to fill the screen, then shrinks back */
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  html { overflow-x: clip; }
+  .card { overflow: visible; }
+  .demo { height: 260vh; padding: 0; overflow: visible; }
+  .demo::before { display: none; }
+  .stage { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; padding: 0 28px; }
+  .demo figure { width: 100%; }
+  .demo video { position: relative; z-index: 2; will-change: transform; }
+  .demo figcaption { position: absolute; top: 100%; left: 0; right: 0; }
+  .rotate-hint { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 14px; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+}
+.rotate-hint svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+@media not ((max-width: 640px) and (prefers-reduced-motion: no-preference)) { .rotate-hint { display: none; } }
 .demo figcaption { margin-top: 14px; text-align: center; font-size: 13px; color: var(--muted); }
 
 /* Footer */
@@ -139,8 +154,9 @@ footer { position: relative; border-top: 1px solid var(--line); padding: 48px 28
 .contact { display: inline-flex; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); text-decoration: none; font-size: 14px; }
 @media (max-width: 760px) { .foot { grid-template-columns: 1fr; } }
 
+.outro { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
 .wordmark { display: block; width: 100%; height: auto; margin: 48px auto 0; }
-.legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 40px; padding-top: 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+.legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 12px; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 html { scroll-behavior: smooth; }
@@ -159,10 +175,14 @@ html { scroll-behavior: smooth; }
 
   <section class="hero">
     <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · London</a>
-    <h1><span class="w in" style="--i:1">See</span> <span class="w in" style="--i:2">your</span> <span class="w in" style="--i:3">taste.</span></h1>
-    <p class="sub in" style="--i:4">You’ve saved thousands of images.<br>Now see what they have in common.</p>
+    <h1 class="in" style="--i:1"><svg class="logotype" viewBox="0 0 1000 383.7" fill="currentColor" role="img" aria-label="AxiA">
+        <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
+        <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
+      </svg></h1>
+    <p class="slogan in" style="--i:2">AxiA, every reference in relation</p>
+    <p class="sub in" style="--i:3">AxiA weaves scattered references into relationships, turning taste that words could never settle into a standard people can see together.</p>
 
-    <div class="join in" style="--i:5" id="join">
+    <div class="join in" style="--i:4" id="join">
       <form id="form" novalidate>
         <div style="display:grid;gap:8px">
           <label for="name" hidden>Name</label>
@@ -178,15 +198,16 @@ html { scroll-behavior: smooth; }
         <span>We’ll email you when early access opens.</span>
       </div>
     </div>
-    <p class="note in" style="--i:6" id="note" role="status">One email when early access opens. No spam.</p>
+    <p class="note in" style="--i:5" id="note" role="status">One email when early access opens. No spam.</p>
   </section>
 
   <section class="demo" aria-label="Product demo">
-    <figure>
+    <div class="stage"><figure>
+      <p class="rotate-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 12a9 9 0 0 1 4-7.5M21 12a9 9 0 0 1-4 7.5M3 4.5v3h3M21 19.5v-3h-3"/></svg>Keep scrolling — the video turns sideways</p>
       <!-- 24-second screen recording of the AxiA prototype. Keep axia-demo.mp4 and axia-demo-poster.jpg next to this file. -->
       <video src="axia-demo.mp4" poster="axia-demo-poster.jpg" autoplay muted loop playsinline preload="metadata"></video>
       <figcaption>Import what you’ve saved. AI tags every image by the same rules, so you can finally see your taste.</figcaption>
-    </figure>
+    </figure></div>
   </section>
 
   <footer>
@@ -206,7 +227,10 @@ html { scroll-behavior: smooth; }
         <p>We only use it to contact you about AxiA. Ask us any time and we’ll delete it.</p>
       </div>
     </div>
+  </footer>
+</div>
 
+<div class="outro">
     <div class="legal"><span>© 2026 AxiA · London</span><span>AxiA, every reference in relation</span></div>
     <svg class="wordmark" viewBox="0 0 1000 383.7" aria-hidden="true">
       <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
@@ -217,7 +241,6 @@ html { scroll-behavior: smooth; }
         <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
       </g>
     </svg>
-  </footer>
 </div>
 
 <script>
@@ -279,6 +302,27 @@ function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; 
   init(); addEventListener("resize", () => { init(); if (still) draw(0); }); still ? draw(0) : requestAnimationFrame(draw);
 })();
 
+/* ---------- Phones: video turns sideways and fills the screen mid-scroll ---------- */
+(() => {
+  const phone = matchMedia("(max-width: 640px) and (prefers-reduced-motion: no-preference)");
+  const demo = document.querySelector(".demo"), vid = demo.querySelector("video"), cap = demo.querySelector("figcaption"), hint = demo.querySelector(".rotate-hint");
+  let queued = false;
+  function update() {
+    queued = false;
+    if (!phone.matches) { vid.style.transform = vid.style.borderRadius = cap.style.opacity = ""; return; }
+    const r = demo.getBoundingClientRect();
+    const t = Math.min(1, Math.max(0, -r.top / (r.height - innerHeight)));
+    const e = Math.min(1, Math.sin(Math.PI * t) * 1.6); // 0 → 1 (held in the middle) → 0
+    const k = e * e * (3 - 2 * e);
+    const full = Math.min(innerHeight / vid.offsetWidth, document.documentElement.clientWidth / vid.offsetHeight);
+    const s = 1 + (full - 1) * k;
+    vid.style.transform = `rotate(${90 * k}deg) scale(${s})`;
+    vid.style.borderRadius = `${14 * (1 - k) / s}px`;
+    cap.style.opacity = hint.style.opacity = 1 - k;
+  }
+  const ask = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+  addEventListener("scroll", ask, { passive: true }); addEventListener("resize", ask); phone.addEventListener("change", ask); update();
+})();
 </script>
 </body>
 </html>
