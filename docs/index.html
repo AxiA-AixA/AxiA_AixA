@@ -6,7 +6,7 @@
 <title>AxiA Waitlist</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Join the AxiA waitlist. Your saved references, tagged by the same rules and shown as a relationship map.">
-<meta property="og:title" content="Get early access to AxiA">
+<meta property="og:title" content="See your taste. AxiA early access">
 <meta property="og:description" content="AxiA, every reference in relation.">
 <!-- Adobe Fonts (New Frank), the same kit as AxiA Web. Falls back to Helvetica Neue where it doesn't load. -->
 <link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css">
@@ -29,6 +29,7 @@
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--page); color: var(--fg); font-family: var(--font);
@@ -58,27 +59,71 @@ a { color: inherit; }
 .pill.solid { background: var(--fg); color: var(--card); }
 .pill:hover { opacity: 0.85; }
 
-/* Hero */
-.hero { position: relative; display: grid; justify-items: center; text-align: center; padding: 72px 24px 0; }
-.eyebrow { margin: 0 0 20px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--muted); }
-h1 { margin: 0; font-size: clamp(40px, 6.4vw, 64px); line-height: 1.02; font-weight: 400; letter-spacing: -0.025em; text-wrap: balance; }
-.sub { margin: 18px 0 0; max-width: 30em; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+/* Hero: short, punchy copy (after the LaunchPad waitlist template), with a small load-in sequence */
+.hero { position: relative; display: grid; justify-items: center; text-align: center; padding: 64px 24px 0; }
+.badge {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px;
+  border-radius: 980px; background: var(--field); box-shadow: var(--glass-edge); color: var(--fg); font-size: 12px; text-decoration: none;
+}
+.badge::after { /* light sweeping across the badge */
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  animation: sweep 3.2s ease-in-out 1.2s infinite;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(127,209,160,0.6); animation: pulse 2s ease-out infinite; }
+h1 { margin: 22px 0 0; font-size: clamp(48px, 9vw, 96px); line-height: 0.98; font-weight: 500; letter-spacing: -0.035em; }
+h1 .w { display: inline-block; }
+.sub { margin: 20px 0 0; max-width: 26em; color: var(--muted); font-size: 17px; text-wrap: balance; }
 
-.join { display: flex; gap: 8px; width: min(440px, 100%); margin-top: 32px; }
+/* "minimal" decoded into tags, one at a time */
+.decode { display: flex; align-items: center; gap: 10px; margin-top: 26px; font-size: 14px; color: var(--muted); }
+.decode q { color: var(--fg); quotes: "“" "”"; }
+.decode .arrow { opacity: 0.5; }
+.decode .tag {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 980px;
+  background: var(--fg); color: var(--card); font-size: 13px; min-width: 7.5em; justify-content: center;
+  transition: opacity 0.25s, filter 0.25s, transform 0.25s;
+}
+.decode .tag.out { opacity: 0; filter: blur(4px); transform: translateY(4px); }
+
+/* Sign-up card */
+.join {
+  display: grid; gap: 8px; width: min(380px, 100%); margin-top: 32px; padding: 14px;
+  border-radius: 18px; background: rgba(255,255,255,0.03); box-shadow: var(--glass-edge);
+}
 .join input {
-  flex: 1; min-width: 0; height: 46px; padding: 0 20px; border: 0; border-radius: 980px;
-  background: var(--field); box-shadow: var(--glass-edge); color: var(--fg); font: inherit; font-size: 14px; outline: none;
+  width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 10px;
+  background: var(--field); color: var(--fg); font: inherit; font-size: 14px; outline: none; transition: box-shadow 0.2s;
 }
 .join input::placeholder { color: var(--muted); }
-.join input:focus { box-shadow: var(--glass-edge), 0 0 0 3px var(--focus); }
-.join .pill { height: 46px; padding: 0 22px; font-size: 14px; }
+.join input:focus { box-shadow: 0 0 0 1px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.08); }
+.join .pill { width: 100%; height: 44px; border-radius: 10px; font-size: 14px; gap: 6px; transition: transform 0.15s, opacity 0.15s; }
+.join .pill .arr { display: inline-block; transition: transform 0.2s; }
+.join .pill:hover .arr { transform: translateX(3px); }
+.join .pill:active { transform: scale(0.98); }
 .join .pill[disabled] { opacity: 0.5; cursor: default; }
-.note { margin: 14px 0 0; min-height: 1.5em; font-size: 13px; color: var(--muted); }
+.note { margin: 12px 0 0; min-height: 1.5em; font-size: 13px; color: var(--muted); }
 .note.ok { color: var(--ok); }
-@media (max-width: 460px) { .join { flex-direction: column; } .join input, .join .pill { flex: none; width: 100%; } }
 
-.tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 8px; }
-.tags span { height: 26px; padding: 0 11px; display: inline-flex; align-items: center; border-radius: 980px; background: var(--field); font-size: 12px; color: var(--muted); }
+/* After signing up: the card turns into a confirmation */
+.done { display: grid; justify-items: center; gap: 10px; padding: 18px 8px 10px; }
+.done svg { width: 40px; height: 40px; }
+.done circle, .done path { fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.done circle { stroke-dasharray: 126; stroke-dashoffset: 126; animation: draw 0.6s ease-out forwards; }
+.done path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw 0.35s ease-out 0.45s forwards; }
+.done strong { font-weight: 500; font-size: 16px; }
+.done span { color: var(--muted); font-size: 13px; }
+
+/* Load-in: each piece rises out of a light blur, one after another */
+.in { animation: rise 0.8s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 90ms + 100ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes sweep { 0% { transform: translateX(-100%); } 40%, 100% { transform: translateX(100%); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(127,209,160,0.6); } 100% { box-shadow: 0 0 0 8px rgba(127,209,160,0); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .in, .badge::after, .badge .dot { animation: none; }
+  .decode .tag { transition: none; }
+}
 
 /* Prototype video + soft light rising from the bottom edge (white, not blue) */
 .demo { position: relative; padding: 56px 28px 72px; overflow: hidden; }
@@ -123,17 +168,28 @@ html { scroll-behavior: smooth; }
   </header>
 
   <section class="hero">
-    <p class="eyebrow">WAITLIST</p>
-    <h1>Get early access<br>to AxiA</h1>
-    <p class="sub">Bring the references you’ve saved on Instagram and Pinterest into one place, tagged by the same rules and shown as a relationship map.</p>
+    <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · London</a>
+    <h1><span class="w in" style="--i:1">See</span> <span class="w in" style="--i:2">your</span> <span class="w in" style="--i:3">taste.</span></h1>
+    <p class="sub in" style="--i:4">Be the first to try AxiA. Years of saved references, finally in one map, in words everyone reads the same way.</p>
+    <p class="decode in" style="--i:5"><q>minimal</q><span class="arrow" aria-hidden="true">→</span><span class="tag" id="cycle" aria-live="off">matte</span></p>
 
-    <form class="join" id="join" novalidate>
-      <label for="email" hidden>Email</label>
-      <input id="email" name="email" type="email" autocomplete="email" placeholder="Enter your email" required>
-      <button class="pill solid" id="submit" type="submit">Join waitlist</button>
-    </form>
-    <p class="note" id="note" role="status">One email when early access opens.</p>
-    <div class="tags" aria-label="Example tags"><span>matte</span><span>low saturation</span><span>negative space</span><span>soft daylight</span></div>
+    <div class="join in" style="--i:6" id="join">
+      <form id="form" novalidate>
+        <div style="display:grid;gap:8px">
+          <label for="name" hidden>Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="Your name">
+          <label for="email" hidden>Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@studio.com" required>
+          <button class="pill solid" id="submit" type="submit">Join the waitlist <span class="arr" aria-hidden="true">→</span></button>
+        </div>
+      </form>
+      <div class="done" id="done" hidden>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/><path d="M14 22.5l5.5 5.5L30 17"/></svg>
+        <strong>You’re on the list.</strong>
+        <span>We’ll email you when early access opens.</span>
+      </div>
+    </div>
+    <p class="note in" style="--i:7" id="note" role="status">One email when early access opens. No spam.</p>
   </section>
 
   <section class="demo" aria-label="Product demo">
@@ -184,11 +240,13 @@ const WAITLIST_TO = "haram.j825@gmail.com";
 const WAITLIST_CC = "dkel96@gmail.com";
 const WAITLIST_ENDPOINT = "https://formsubmit.co/ajax/" + WAITLIST_TO;
 
-const form = document.getElementById("join");
+const form = document.getElementById("form");
+const done = document.getElementById("done");
 const note = document.getElementById("note");
 const submit = document.getElementById("submit");
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+  const name = document.getElementById("name").value.trim();
   const email = form.email.value.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     note.className = "note"; note.textContent = "Enter an email address like you@studio.com."; form.email.focus(); return;
@@ -200,11 +258,11 @@ form.addEventListener("submit", async (e) => {
   try {
     const res = await fetch(WAITLIST_ENDPOINT, {
       method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ email, _cc: WAITLIST_CC, _subject: "New AxiA waitlist sign-up", _template: "table" }),
+      body: JSON.stringify({ name, email, _cc: WAITLIST_CC, _subject: "New AxiA waitlist sign-up", _template: "table" }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || String(data.success) !== "true") { note.className = "note"; note.textContent = data.message || "That didn’t go through. Please try again."; return; }
-    form.reset(); note.className = "note ok"; note.textContent = "You’re on the list. We’ll email you when early access opens.";
+    form.hidden = true; done.hidden = false; note.className = "note"; note.textContent = "";
   } catch {
     note.className = "note";
     note.textContent = location.protocol === "file:"
@@ -216,6 +274,18 @@ form.addEventListener("submit", async (e) => {
 const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; c.height = b.height * DPR; const x = c.getContext("2d"); x.setTransform(DPR, 0, 0, DPR, 0, 0); return [b.width, b.height, x]; }
+
+/* ---------- "minimal" decoded into AxiA tags ---------- */
+(() => {
+  const el = document.getElementById("cycle");
+  const tags = ["matte", "low saturation", "negative space", "soft daylight", "few colours"];
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let i = 0;
+  setInterval(() => {
+    el.classList.add("out");
+    setTimeout(() => { i = (i + 1) % tags.length; el.textContent = tags[i]; el.classList.remove("out"); }, 250);
+  }, 1800);
+})();
 
 /* ---------- Star field behind the card ---------- */
 (() => {
