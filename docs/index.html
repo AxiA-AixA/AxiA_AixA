@@ -203,10 +203,13 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({ email, _cc: WAITLIST_CC, _subject: "New AxiA waitlist sign-up", _template: "table" }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || String(data.success) !== "true") throw new Error(data.message || res.status);
+    if (!res.ok || String(data.success) !== "true") { note.className = "note"; note.textContent = data.message || "That didn’t go through. Please try again."; return; }
     form.reset(); note.className = "note ok"; note.textContent = "You’re on the list. We’ll email you when early access opens.";
   } catch {
-    note.className = "note"; note.textContent = "That didn’t go through. Check your connection and try again.";
+    note.className = "note";
+    note.textContent = location.protocol === "file:"
+      ? "Sign-up only works on the published page (https://…), not on a file opened from your computer."
+      : "That didn’t go through. Check your connection and try again.";
   } finally { submit.disabled = false; }
 });
 
