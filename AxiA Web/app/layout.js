@@ -5,6 +5,8 @@ import "./globals.css";
 export const metadata = {
   title: "AxiA",
   description: "Collect scattered references and let AI organise them.",
+  // The demo shows other people's work as references: keep it out of search results.
+  ...(process.env.NEXT_PUBLIC_DEMO && { robots: { index: false, follow: false } }),
 };
 
 export default function RootLayout({ children }) {

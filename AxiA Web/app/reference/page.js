@@ -6,6 +6,14 @@ export const dynamic = "force-dynamic";
 // The axia-prototype app (search, filters by field / source / tag, group views, detail edit,
 // re-analyse, AI settings), shown as-is. Imported thumbnails are sent to it first.
 export default async function Reference() {
+  if (process.env.NEXT_PUBLIC_DEMO) {
+    return (
+      <section className="lab">
+        <h1>Reference</h1>
+        <p>This is a view-only demo. Adding and analysing references works in the local version of AxiA; accounts are coming with the full release.</p>
+      </section>
+    );
+  }
   const up = await fetch(`${AXIA}/api/ping`, { cache: "no-store", signal: AbortSignal.timeout(2000) })
     .then((r) => r.ok).catch(() => false);
   if (!up) {

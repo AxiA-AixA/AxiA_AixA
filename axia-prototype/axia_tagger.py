@@ -188,6 +188,11 @@ def parse_json(text):
         return None
 
 
+# Group names that mean the same thing as an existing tag: merged so the graph shows one term.
+GROUP_MERGE = {"brand identity": "branding", "branding identity": "branding"}
+GROUP_TAG = {"branding": "Branding"}  # images in this group always carry this tag
+
+
 def clean(answer, court, mode):
     """모델 답을 Court 기준으로 정리: 소문자·하이픈 통일, 중복 제거, 목록 방식이면 목록 밖 태그 제거."""
     allowed = {t["tag"] for t in court["tags"]}
@@ -211,9 +216,14 @@ def clean(answer, court, mode):
         if f in court_fields(court) and f not in fields:
             fields.append(f)
     fields = fields[:3]
+    group = str(answer.get("group_name") or "").strip().lower()
+    group = GROUP_MERGE.get(group, group)
+    tag = GROUP_TAG.get(group)
+    if tag and tag not in tags:
+        tags.insert(0, tag)  # first, so the tag limit never cuts it
     return {"fields": fields, "field": fields[0] if fields else None,
             "tags": tags[: court.get("max_tags", 8)],
-            "group_name": str(answer.get("group_name") or "").strip().lower(),
+            "group_name": group,
             "dropped": dropped}
 
 
@@ -290,4 +300,6 @@ if __name__ == "__main__":  # 태그 규칙 확인: python3 axia_tagger.py
     two = clean({"fields": ["Graphic", "package", "nope", "graphic"], "tags": []}, c | {"fields": {"graphic": "", "package": ""}}, "list")
     assert two["fields"] == ["graphic", "package"] and two["field"] == "graphic", two
     assert clean({"field": "graphic", "tags": []}, c | {"fields": {"graphic": ""}}, "list")["fields"] == ["graphic"]
+    b = clean({"tags": ["neon"], "group_name": "Brand Identity"}, c | {"fields": {}}, "list")
+    assert b["group_name"] == "branding" and b["tags"] == ["Branding", "Neon"], b
     print("tag rules ok")

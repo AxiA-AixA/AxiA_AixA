@@ -124,6 +124,13 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px 
 .nav-menu .btn[aria-current="page"] { background: var(--hi-strong); }
 .nav-menu .btn.primary:hover { background: var(--black); opacity: 0.85; }
 .nav-menu .logotype { flex: none; padding: 0 12px; color: var(--black); }
+.nav-menu .btn { white-space: nowrap; }
+
+/* Phones: the menu fills the row next to the symbol; tighter buttons so all four fit */
+@media (max-width: 640px) {
+  .nav-menu { width: auto; flex: 1; margin-left: 12px; }
+  .nav-menu .btn, .nav-menu .logotype { padding: 0 6px; }
+}
 
 main { padding: 48px var(--margin); max-width: 1440px; margin: 0 auto; }
 

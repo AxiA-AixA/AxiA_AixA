@@ -87,6 +87,8 @@ export default function Graph() {
   // Slider values are remembered per browser so tuning survives a reload.
   useEffect(() => {
     try { setTune({ ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") }); } catch {}
+    // Phones: Display starts folded so the graph stays visible.
+    if (window.matchMedia("(max-width: 640px)").matches) { setTuningOpen(false); tuningWas.current = false; }
     // Filters come back after visiting another page (runs before the first library load).
     try {
       const f = JSON.parse(sessionStorage.getItem(FILTERS) ?? "null");
@@ -283,9 +285,10 @@ export default function Graph() {
           const f = (a.hub && b.hub ? 6000 : tuneRef.current.spread) / d2;
           a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
           if (a.hub && b.hub) { // keep hub thumbnails (screen size) from overlapping
-            // ponytail: gap is in screen px, capped at zoom 0.08 so it can't feed back into fit()
-            // (wider gap -> zoom out -> wider gap); many hubs may overlap a little when zoomed far out.
-            const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, 0.08), d = Math.sqrt(d2);
+            // ponytail: gap is in screen px, capped at zoom 0.08 (0.03 on phones, which zoom further out)
+            // so it can't feed back into fit() (wider gap -> zoom out -> wider gap); many hubs may overlap
+            // a little when zoomed far out.
+            const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, canvas.clientWidth <= 640 ? 0.03 : 0.08), d = Math.sqrt(d2);
             if (d < min) {
               const push = ((min - d) / d) * 0.2;
               a.vx += dx * push; a.vy += dy * push; b.vx -= dx * push; b.vy -= dy * push;
@@ -314,14 +317,17 @@ export default function Graph() {
       const xs = s.nodes.map((n) => n.x), ys = s.nodes.map((n) => n.y);
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
       const pad = 120 + 2 * tuneRef.current.dot * HUB_DOTS; // header, plus hub circles at the edges
-      // fit the graph into the area left of the right-hand panel (detail = half the screen)
-      const side = SIDE_W + 48; // the right-hand column of panels
-      const k = Math.min(8, Math.max(0.05, Math.min(
+      // fit the graph into the area left of the right-hand panel (detail = half the screen);
+      // on phones the panels span the top instead, so fit below them
+      const phone = canvas.clientWidth <= 640;
+      const side = phone ? 0 : SIDE_W + 48; // the right-hand column of panels
+      const top = phone ? 210 : 0; // header + search + folded Display
+      const k = Math.min(8, Math.max(0.02, Math.min(
         (canvas.clientWidth - side) / (maxX - minX + pad / s.cam.k),
-        canvas.clientHeight / (maxY - minY + pad / s.cam.k),
+        (canvas.clientHeight - top) / (maxY - minY + pad / s.cam.k),
       )));
       const ease = (a, b) => a + (b - a) * 0.15;
-      s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(s.cam.y, (minY + maxY) / 2) };
+      s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(s.cam.y, (minY + maxY) / 2 - top / 2 / k) };
       if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
     }
 
@@ -449,23 +455,55 @@ export default function Graph() {
     // Wheel zooms around the cursor, drag pans, click shows the image in the detail panel.
     let drag = null;
     const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    const onWheel = (e) => {
-      e.preventDefault();
+    // Zoom to k, keeping the point under m where it is.
+    const zoomAt = (m, k) => {
       s.userCam = true;
-      const m = local(e), k = Math.min(8, Math.max(0.05, s.cam.k * Math.exp(-e.deltaY * 0.002)));
+      k = Math.min(8, Math.max(0.02, k));
       const wx = (m.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x, wy = (m.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
       s.cam = { k, x: wx - (m.x - canvas.clientWidth / 2) / k, y: wy - (m.y - canvas.clientHeight / 2) / k };
       setZoom(k);
     };
+    const onWheel = (e) => { e.preventDefault(); zoomAt(local(e), s.cam.k * Math.exp(-e.deltaY * 0.002)); };
+    // Touch has no hover: find the dot under a tap directly.
+    const dotAt = (m) => {
+      let best = 24, hit = null;
+      for (const n of s.nodes) {
+        if (n.hub) continue;
+        const p = toScreen(n), d = Math.hypot(p.x - m.x, p.y - m.y);
+        if (d < best) { best = d; hit = n; }
+      }
+      return hit;
+    };
+    // Touch: one finger pans, two fingers pinch-zoom, a tap opens an image.
+    const fingers = new Map();
+    let pinch = null;
+    const spread = () => { const [a, b] = [...fingers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; };
     // Press on a dot or hub and move: drag it (its links pull neighbours along, like Obsidian);
     // where you drop it, it stays (Reset in the Display panel unpins everything).
     // Press on empty space and move: pan. Press and release without moving on a dot: open it.
     const onDown = (e) => {
       const m = local(e);
-      drag = { ...m, cam: { ...s.cam }, moved: false, node: s.hover ?? hubAt(m) };
       canvas.setPointerCapture(e.pointerId);
+      if (e.pointerType === "touch") {
+        fingers.set(e.pointerId, m);
+        if (fingers.size === 2) { const f = spread(); pinch = { d: f.d, k: s.cam.k }; drag = null; return; }
+        drag = { ...m, cam: { ...s.cam }, moved: false }; // one finger always pans: dots are too dense to grab by finger
+        return;
+      }
+      drag = { ...m, cam: { ...s.cam }, moved: false, node: s.hover ?? hubAt(m) };
     };
     const onMove = (e) => {
+      if (e.pointerType === "touch") {
+        if (!fingers.has(e.pointerId)) return;
+        const m = local(e);
+        fingers.set(e.pointerId, m);
+        if (pinch && fingers.size === 2) { const f = spread(); zoomAt(f.m, pinch.k * f.d / pinch.d); return; }
+        if (!drag) return;
+        const dx = m.x - drag.x, dy = m.y - drag.y;
+        if (Math.hypot(dx, dy) > 6) { drag.moved = true; s.userCam = true; } // a little wobble still counts as a tap
+        if (drag.moved) s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
+        return;
+      }
       s.mouse = local(e);
       if (!drag) return;
       const dx = s.mouse.x - drag.x, dy = s.mouse.y - drag.y;
@@ -481,12 +519,20 @@ export default function Graph() {
         s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
       }
     };
-    const onUp = () => {
+    const onUp = (e) => {
+      if (e.pointerType === "touch") {
+        fingers.delete(e.pointerId);
+        if (pinch) { if (!fingers.size) pinch = null; drag = null; return; } // lifting after a pinch is not a tap
+        if (drag && !drag.moved) { const n = dotAt(local(e)); if (n) openDetail(n.entry); }
+        drag = null;
+        return;
+      }
       if (drag && !drag.moved && drag.node && !drag.node.hub) openDetail(drag.node.entry);
       drag = null;
       s.dragged = null;
     };
-    const onLeave = () => { s.mouse = null; drag = null; s.dragged = null; };
+    const onLeave = (e) => { if (e.pointerType === "touch") return; s.mouse = null; drag = null; s.dragged = null; };
+    const onCancel = (e) => { fingers.delete(e.pointerId); pinch = null; drag = null; s.dragged = null; };
     const onKey = (e) => { if (e.key === "Escape") closeDetail(); };
     window.addEventListener("keydown", onKey);
     canvas.addEventListener("wheel", onWheel, { passive: false });
@@ -494,6 +540,7 @@ export default function Graph() {
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("pointercancel", onCancel);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
@@ -502,6 +549,7 @@ export default function Graph() {
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("pointercancel", onCancel);
     };
   }, []);
 
