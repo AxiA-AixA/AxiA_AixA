@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AxiA Waitlist</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Join the AxiA waitlist. Your saved references, tagged by the same rules and shown as a relationship map.">
+<meta property="og:title" content="Get early access to AxiA">
+<meta property="og:description" content="AxiA, every reference in relation.">
+<!-- Adobe Fonts (New Frank), the same kit as AxiA Web. Falls back to Helvetica Neue where it doesn't load. -->
+<link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css">
+<style>
+/* Layout: one framed card on a black star field (after the Atmos reference), hero centred,
+   the prototype video under the form, footer and an oversized wordmark at the bottom.
+   Colours and type follow AxiA Web (app/globals.css). Single dark look by design. */
+:root {
+  color-scheme: dark;
+  --page: #000;
+  --card: #0b0b0c;          /* AxiA Web --white (page background) */
+  --fg: #f5f5f7;            /* AxiA Web --black (main text) */
+  --muted: #8e8e93;
+  --line: rgba(255, 255, 255, 0.10);
+  --field: rgba(255, 255, 255, 0.06);
+  --glass-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --focus: rgba(0, 113, 227, 0.5);
+  --ok: #7fd1a0;
+  --font: "new-frank", "Neue Haas Grotesk Text Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--fg); font-family: var(--font);
+  font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px;
+}
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+#stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+.card {
+  position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; overflow: hidden;
+  background: var(--card); border-radius: 22px; box-shadow: var(--glass-edge);
+}
+
+/* Nav */
+.nav { display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 28px; }
+.nav svg { display: block; height: 15px; width: auto; color: var(--fg); }
+.pill {
+  display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 18px;
+  border: 0; border-radius: 980px; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.pill.ghost { background: var(--field); color: var(--fg); box-shadow: var(--glass-edge); }
+.pill.solid { background: var(--fg); color: var(--card); }
+.pill:hover { opacity: 0.85; }
+
+/* Hero */
+.hero { position: relative; display: grid; justify-items: center; text-align: center; padding: 72px 24px 0; }
+.eyebrow { margin: 0 0 20px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--muted); }
+h1 { margin: 0; font-size: clamp(40px, 6.4vw, 64px); line-height: 1.02; font-weight: 400; letter-spacing: -0.025em; text-wrap: balance; }
+.sub { margin: 18px 0 0; max-width: 30em; color: var(--muted); font-size: 16px; text-wrap: pretty; }
+
+.join { display: flex; gap: 8px; width: min(440px, 100%); margin-top: 32px; }
+.join input {
+  flex: 1; min-width: 0; height: 46px; padding: 0 20px; border: 0; border-radius: 980px;
+  background: var(--field); box-shadow: var(--glass-edge); color: var(--fg); font: inherit; font-size: 14px; outline: none;
+}
+.join input::placeholder { color: var(--muted); }
+.join input:focus { box-shadow: var(--glass-edge), 0 0 0 3px var(--focus); }
+.join .pill { height: 46px; padding: 0 22px; font-size: 14px; }
+.join .pill[disabled] { opacity: 0.5; cursor: default; }
+.note { margin: 14px 0 0; min-height: 1.5em; font-size: 13px; color: var(--muted); }
+.note.ok { color: var(--ok); }
+@media (max-width: 460px) { .join { flex-direction: column; } .join input, .join .pill { flex: none; width: 100%; } }
+
+.tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 8px; }
+.tags span { height: 26px; padding: 0 11px; display: inline-flex; align-items: center; border-radius: 980px; background: var(--field); font-size: 12px; color: var(--muted); }
+
+/* Prototype video + soft light rising from the bottom edge (white, not blue) */
+.demo { position: relative; padding: 56px 28px 72px; overflow: hidden; }
+.demo::before {
+  content: ""; position: absolute; left: -10%; right: -10%; bottom: -30%; height: 100%; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.16), rgba(255,255,255,0.05) 40%, transparent 70%);
+}
+.demo figure { position: relative; margin: 0 auto; max-width: 980px; }
+.demo video {
+  display: block; width: 100%; height: auto; aspect-ratio: 1600 / 878; border-radius: 14px; background: #000;
+  box-shadow: var(--glass-edge), 0 40px 120px rgba(0, 0, 0, 0.6);
+}
+.demo figcaption { margin-top: 14px; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* Footer */
+footer { position: relative; border-top: 1px solid var(--line); padding: 48px 28px 0; }
+.foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
+.foot h2 { margin: 0 0 12px; font-size: 15px; font-weight: 400; }
+.foot p { margin: 0 0 20px; max-width: 22em; color: var(--muted); font-size: 14px; }
+.foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
+.foot ul a { text-decoration: none; }
+.foot ul a:hover, .contact:hover { color: var(--fg); }
+.contact { display: inline-flex; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); text-decoration: none; font-size: 14px; }
+@media (max-width: 760px) { .foot { grid-template-columns: 1fr; } }
+
+.wordmark { display: block; width: 94%; height: auto; margin: 40px auto -9%; }
+.legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 40px; padding-top: 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<div class="card">
+  <header class="nav">
+    <a href="#" aria-label="AxiA">
+      <svg viewBox="0 0 1000 532.7" fill="currentColor" aria-hidden="true"><path d="M1000,19.7V5c0-3.6-3.7-6-7-4.6l-484.8,217.3c-5.2,2.3-11.2,2.3-16.4,0L7,.4C3.7-1,0,1.4,0,5v49.6C0,59.7,2,64.7,5.5,68.4l253.1,265.1c4.4,4.6,3.4,12.1-2,15.4L4.7,504.5C1.8,506.3,0,509.6,0,513v14.7c0,3.6,3.7,6,7,4.6l484.8-217.3c5.2-2.3,11.2-2.3,16.4,0l484.8,217.3c3.3,1.5,7-.9,7-4.6v-49.6c0-5.1-2-10.1-5.5-13.8l-253.1-265.1c-4.4-4.6-3.4-12.1,2-15.4L995.3,28.2c2.9-1.8,4.7-5,4.7-8.5Z"/></svg>
+    </a>
+    <a class="pill ghost" href="#join">Join waitlist</a>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">WAITLIST</p>
+    <h1>Get early access<br>to AxiA</h1>
+    <p class="sub">Bring the references you’ve saved on Instagram and Pinterest into one place, tagged by the same rules and shown as a relationship map.</p>
+
+    <form class="join" id="join" novalidate>
+      <label for="email" hidden>Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="Enter your email" required>
+      <button class="pill solid" id="submit" type="submit">Join waitlist</button>
+    </form>
+    <p class="note" id="note" role="status">One email when early access opens.</p>
+    <div class="tags" aria-label="Example tags"><span>matte</span><span>low saturation</span><span>negative space</span><span>soft daylight</span></div>
+  </section>
+
+  <section class="demo" aria-label="Product demo">
+    <figure>
+      <!-- 24-second screen recording of the AxiA prototype. Keep axia-demo.mp4 and axia-demo-poster.jpg next to this file. -->
+      <video src="axia-demo.mp4" poster="axia-demo-poster.jpg" autoplay muted loop playsinline preload="metadata"></video>
+      <figcaption>The working AxiA prototype: 1,094 saved references, mapped and filtered by tag.</figcaption>
+    </figure>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <div>
+        <h2>Get in touch</h2>
+        <p>Reach out for access, questions or partnerships. We’re meeting people at events around London this month.</p>
+        <!-- To add a contact link: <a class="contact" href="https://www.linkedin.com/in/...">Contact us <span aria-hidden="true">→</span></a> -->
+        <a class="contact" href="#join">Join the waitlist <span aria-hidden="true">→</span></a>
+      </div>
+      <div>
+        <h2>What happens next</h2>
+        <p>Early access opens in small groups. We’ll email you when it’s your turn.</p>
+      </div>
+      <div>
+        <h2>Your email</h2>
+        <p>We only use it to contact you about AxiA. Ask us any time and we’ll delete it.</p>
+      </div>
+    </div>
+
+    <div class="legal"><span>© 2026 AxiA · London</span><span>AxiA, every reference in relation</span></div>
+    <svg class="wordmark" viewBox="0 0 1000 383.7" aria-hidden="true">
+      <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f5f5f7" stop-opacity="0.55"/><stop offset="1" stop-color="#f5f5f7" stop-opacity="0.04"/>
+      </linearGradient></defs>
+      <g fill="url(#fade)">
+        <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
+        <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
+      </g>
+    </svg>
+  </footer>
+</div>
+
+<script>
+/* ---------- Waitlist ----------
+   Paste a form endpoint between the quotes to collect sign-ups (e.g. Formspree: "https://formspree.io/f/xxxxxxx").
+   While it's empty, the form shows a notice instead of pretending to save. */
+const WAITLIST_ENDPOINT = "";
+
+const form = document.getElementById("join");
+const note = document.getElementById("note");
+const submit = document.getElementById("submit");
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = form.email.value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    note.className = "note"; note.textContent = "Enter an email address like you@studio.com."; form.email.focus(); return;
+  }
+  if (!WAITLIST_ENDPOINT) {
+    note.className = "note"; note.textContent = "Sign-up opens very soon. Please check back in a little while."; return;
+  }
+  submit.disabled = true; note.className = "note"; note.textContent = "Adding you…";
+  try {
+    const res = await fetch(WAITLIST_ENDPOINT, {
+      method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    form.reset(); note.className = "note ok"; note.textContent = "You’re on the list. We’ll email you when early access opens.";
+  } catch {
+    note.className = "note"; note.textContent = "That didn’t go through. Check your connection and try again.";
+  } finally { submit.disabled = false; }
+});
+
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; c.height = b.height * DPR; const x = c.getContext("2d"); x.setTransform(DPR, 0, 0, DPR, 0, 0); return [b.width, b.height, x]; }
+
+/* ---------- Star field behind the card ---------- */
+(() => {
+  const c = document.getElementById("stars"); let W, H, ctx, stars = [];
+  function init() {
+    [W, H, ctx] = fit(c);
+    stars = Array.from({ length: Math.round(W * H / 5000) }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 0.9 + 0.2, p: Math.random() * 6.28 }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    for (const s of stars) { ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t / 1400 + s.p)); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.28); ctx.fill(); }
+    if (!still) requestAnimationFrame(draw);
+  }
+  init(); addEventListener("resize", () => { init(); if (still) draw(0); }); still ? draw(0) : requestAnimationFrame(draw);
+})();
+
+</script>
+</body>
+</html>
