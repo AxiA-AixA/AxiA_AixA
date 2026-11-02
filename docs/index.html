@@ -177,9 +177,12 @@ html { scroll-behavior: smooth; }
 
 <script>
 /* ---------- Waitlist ----------
-   Paste a form endpoint between the quotes to collect sign-ups (e.g. Formspree: "https://formspree.io/f/xxxxxxx").
-   While it's empty, the form shows a notice instead of pretending to save. */
-const WAITLIST_ENDPOINT = "";
+   Sign-ups are emailed through FormSubmit (formsubmit.co) to WAITLIST_TO, with a copy to WAITLIST_CC.
+   The first sign-up sends an activation email to WAITLIST_TO; click its link once and sign-ups start arriving.
+   Clear WAITLIST_ENDPOINT to switch sign-up off (the form then shows a notice instead of pretending to save). */
+const WAITLIST_TO = "haram.j825@gmail.com";
+const WAITLIST_CC = "dkel96@gmail.com";
+const WAITLIST_ENDPOINT = "https://formsubmit.co/ajax/" + WAITLIST_TO;
 
 const form = document.getElementById("join");
 const note = document.getElementById("note");
@@ -197,9 +200,10 @@ form.addEventListener("submit", async (e) => {
   try {
     const res = await fetch(WAITLIST_ENDPOINT, {
       method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, _cc: WAITLIST_CC, _subject: "New AxiA waitlist sign-up", _template: "table" }),
     });
-    if (!res.ok) throw new Error(res.status);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || String(data.success) !== "true") throw new Error(data.message || res.status);
     form.reset(); note.className = "note ok"; note.textContent = "You’re on the list. We’ll email you when early access opens.";
   } catch {
     note.className = "note"; note.textContent = "That didn’t go through. Check your connection and try again.";
