@@ -287,17 +287,23 @@ const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; c.height = b.height * DPR; const x = c.getContext("2d"); x.setTransform(DPR, 0, 0, DPR, 0, 0); return [b.width, b.height, x]; }
 
-/* ---------- Gyro: phone tilt nudges the stars and the footer logo gradient ----------
-   iOS only shares motion after the visitor allows it, so we ask on their first tap. */
+/* ---------- Gyro: phone tilt nudges the stars and the footer logo gradient, live ----------
+   Movement is measured from how the phone was held when the page first read it.
+   iOS only shares motion after the visitor allows it, and only asks from a real tap (not a scroll). */
 const tilt = { x: 0, y: 0 }, aim = { x: 0, y: 0 };
 if (!still) {
   const clamp = (v) => Math.max(-1, Math.min(1, v));
+  let base = null;
   addEventListener("deviceorientation", (e) => {
     if (e.gamma == null) return;
-    aim.x = clamp(e.gamma / 30); aim.y = clamp((e.beta - 45) / 30); // 45° ≈ how a phone is usually held
+    base ??= { g: e.gamma, b: e.beta };
+    aim.x = clamp((e.gamma - base.g) / 25); aim.y = clamp((e.beta - base.b) / 25);
   });
-  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function")
-    addEventListener("touchend", () => DeviceOrientationEvent.requestPermission().catch(() => {}), { once: true });
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    const ask = () => DeviceOrientationEvent.requestPermission()
+      .then((r) => { if (r === "granted") removeEventListener("click", ask); }).catch(() => {});
+    addEventListener("click", ask);
+  }
 }
 const fade = document.getElementById("fade"), fadeTop = fade.querySelector("stop");
 function tiltLogo() {
@@ -318,7 +324,7 @@ function tiltLogo() {
     ctx.clearRect(0, 0, W, H);
     tilt.x += (aim.x - tilt.x) * 0.06; tilt.y += (aim.y - tilt.y) * 0.06; // ease toward the phone's tilt
     tiltLogo();
-    const ox = tilt.x * 18, oy = tilt.y * 18; // bigger stars move more, so they read as closer
+    const ox = tilt.x * 24, oy = tilt.y * 24; // bigger stars move more, so they read as closer
     for (const s of stars) {
       const x = (((s.x + ox * s.r) % W) + W) % W, y = (((s.y + oy * s.r) % H) + H) % H;
       ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t / 2600 + s.p)); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, s.r, 0, 6.28); ctx.fill();
