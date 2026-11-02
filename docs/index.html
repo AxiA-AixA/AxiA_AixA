@@ -75,17 +75,6 @@ h1 { margin: 22px 0 0; font-size: clamp(48px, 9vw, 96px); line-height: 0.98; fon
 h1 .w { display: inline-block; }
 .sub { margin: 20px 0 0; max-width: 26em; color: var(--muted); font-size: 17px; text-wrap: balance; }
 
-/* "minimal" decoded into tags, one at a time */
-.decode { display: flex; align-items: center; gap: 10px; margin-top: 26px; font-size: 14px; color: var(--muted); }
-.decode q { color: var(--fg); quotes: "“" "”"; }
-.decode .arrow { opacity: 0.5; }
-.decode .tag {
-  display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 980px;
-  background: var(--fg); color: var(--card); font-size: 13px; min-width: 7.5em; justify-content: center;
-  transition: opacity 0.25s, filter 0.25s, transform 0.25s;
-}
-.decode .tag.out { opacity: 0; filter: blur(4px); transform: translateY(4px); }
-
 /* Sign-up card */
 .join {
   display: grid; gap: 8px; width: min(380px, 100%); margin-top: 32px; padding: 14px;
@@ -122,7 +111,6 @@ h1 .w { display: inline-block; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .in, .badge::after, .badge .dot { animation: none; }
-  .decode .tag { transition: none; }
 }
 
 /* Prototype video + soft light rising from the bottom edge (white, not blue) */
@@ -171,9 +159,8 @@ html { scroll-behavior: smooth; }
     <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · London</a>
     <h1><span class="w in" style="--i:1">See</span> <span class="w in" style="--i:2">your</span> <span class="w in" style="--i:3">taste.</span></h1>
     <p class="sub in" style="--i:4">Be the first to try AxiA. Years of saved references, finally in one map, in words everyone reads the same way.</p>
-    <p class="decode in" style="--i:5"><q>minimal</q><span class="arrow" aria-hidden="true">→</span><span class="tag" id="cycle" aria-live="off">matte</span></p>
 
-    <div class="join in" style="--i:6" id="join">
+    <div class="join in" style="--i:5" id="join">
       <form id="form" novalidate>
         <div style="display:grid;gap:8px">
           <label for="name" hidden>Name</label>
@@ -189,7 +176,7 @@ html { scroll-behavior: smooth; }
         <span>We’ll email you when early access opens.</span>
       </div>
     </div>
-    <p class="note in" style="--i:7" id="note" role="status">One email when early access opens. No spam.</p>
+    <p class="note in" style="--i:6" id="note" role="status">One email when early access opens. No spam.</p>
   </section>
 
   <section class="demo" aria-label="Product demo">
@@ -274,18 +261,6 @@ form.addEventListener("submit", async (e) => {
 const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; c.height = b.height * DPR; const x = c.getContext("2d"); x.setTransform(DPR, 0, 0, DPR, 0, 0); return [b.width, b.height, x]; }
-
-/* ---------- "minimal" decoded into AxiA tags ---------- */
-(() => {
-  const el = document.getElementById("cycle");
-  const tags = ["matte", "low saturation", "negative space", "soft daylight", "few colours"];
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  let i = 0;
-  setInterval(() => {
-    el.classList.add("out");
-    setTimeout(() => { i = (i + 1) % tags.length; el.textContent = tags[i]; el.classList.remove("out"); }, 250);
-  }, 1800);
-})();
 
 /* ---------- Star field behind the card ---------- */
 (() => {
