@@ -7,6 +7,9 @@ URL="http://localhost:3000"
 
 [ -d node_modules ] || npm install
 
+# AI analyser off? Open its launcher in its own Terminal window (same as the Windows .bat).
+curl -s -m 2 -o /dev/null http://127.0.0.1:8770/api/ping || { chmod +x ../axia-prototype/Axia-*-Mac.command; open -a Terminal ../axia-prototype/Axia-*-Mac.command; }  # Drive sometimes drops the run permission
+
 # Already running? Just open it.
 if curl -s -m 2 -o /dev/null "$URL"; then
   open -a "Google Chrome" "$URL"

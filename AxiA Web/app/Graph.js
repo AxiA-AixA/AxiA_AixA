@@ -20,6 +20,7 @@ const SIDE_W = 340;    // width of the right-hand panel column (matches .side in
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
 const FILTERS = "axia-filters"; // searched tags + view, kept for this browser tab
+let kept = null; // graph layout + camera, kept while visiting other pages (until a reload)
 
 // Project types (axia-prototype's "field" codes) as shown on the graph.
 const FIELD_NAMES = {
@@ -60,7 +61,7 @@ const passes = (e, selected) => selected.every((t) => termsOf(e).includes(t));
 
 export default function Graph() {
   const canvasRef = useRef(null);
-  const g = useRef({ nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
+  const g = useRef(kept ?? { nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
   const [stats, setStats] = useState({ links: 0, thumbs: 0 });
   const [online, setOnline] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -108,10 +109,19 @@ export default function Graph() {
 
   // The graph shows axia-prototype's library only. Polled, so new analysis results move in live.
   useEffect(() => {
+    const s = g.current;
+    if (s.byId.size) { // back from another page: show the kept layout as it was, no reshuffle
+      const cam = s.userCam;
+      Object.assign(s, { mouse: null, hover: null, dragged: null });
+      rebuild(0);
+      s.userCam = cam;
+      s.shownK = s.cam.k; setZoom(s.cam.k);
+      setStats({ links: s.byId.size, thumbs: [...s.byId.values()].filter((n) => n.img).length });
+    }
     const load = () => fetch("/api/library").then((r) => r.json()).then((d) => { setOnline(d.online); show(d.items); }).catch(() => {});
     load();
     const t = setInterval(load, 5000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); kept = s; };
   }, []);
 
   // Add new library items; for known ones pick up new analysis results.
