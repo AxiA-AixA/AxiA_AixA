@@ -249,7 +249,7 @@ html { scroll-behavior: smooth; }
    Sign-ups go to a Google Apps Script web app (code in tools/waitlist-apps-script.gs). It adds a row to the
    "AxiA Waitlist" Google Sheet and emails the team. Paste the web app URL (…/exec) between the quotes.
    Until it's set, sign-ups are emailed through FormSubmit to FALLBACK_TO (no sheet row). */
-const WAITLIST_ENDPOINT = "";
+const WAITLIST_ENDPOINT = "https://script.google.com/macros/s/AKfycbxS1dx156Q4R51hzwchxyUkwLWrbev4WPsYPw3I2RH6DwqpnBLNUFCKTXcl3j2gDH-l/exec";
 const FALLBACK_TO = "qoon@boogpunt.com";
 
 const form = document.getElementById("form");
