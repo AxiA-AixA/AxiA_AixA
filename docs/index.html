@@ -179,8 +179,8 @@ html { scroll-behavior: smooth; }
         <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
         <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
       </svg></h1>
-    <p class="slogan in" style="--i:2">AxiA, every reference in relation</p>
-    <p class="sub in" style="--i:3">AxiA weaves scattered references into relationships, turning taste that words could never settle into a standard people can see together.</p>
+    <p class="slogan in" style="--i:2">See your taste.</p>
+    <p class="sub in" style="--i:3">You’ve saved thousands of images.<br>Now see what they have in common.</p>
 
     <div class="join in" style="--i:4" id="join">
       <form id="form" novalidate>
@@ -189,6 +189,7 @@ html { scroll-behavior: smooth; }
           <input id="name" name="name" type="text" autocomplete="name" placeholder="Your name">
           <label for="email" hidden>Email</label>
           <input id="email" name="email" type="email" autocomplete="email" placeholder="you@studio.com" required>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
           <button class="pill solid" id="submit" type="submit">Join the waitlist <span class="arr" aria-hidden="true">→</span></button>
         </div>
       </form>
@@ -245,12 +246,11 @@ html { scroll-behavior: smooth; }
 
 <script>
 /* ---------- Waitlist ----------
-   Sign-ups are emailed through FormSubmit (formsubmit.co) to WAITLIST_TO, with a copy to WAITLIST_CC.
-   The first sign-up sends an activation email to WAITLIST_TO; click its link once and sign-ups start arriving.
-   Clear WAITLIST_ENDPOINT to switch sign-up off (the form then shows a notice instead of pretending to save). */
-const WAITLIST_TO = "haram.j825@gmail.com";
-const WAITLIST_CC = "dkel96@gmail.com";
-const WAITLIST_ENDPOINT = "https://formsubmit.co/ajax/" + WAITLIST_TO;
+   Sign-ups go to a Google Apps Script web app (code in tools/waitlist-apps-script.gs). It adds a row to the
+   "AxiA Waitlist" Google Sheet and emails the team. Paste the web app URL (…/exec) between the quotes.
+   Until it's set, sign-ups are emailed through FormSubmit to FALLBACK_TO (no sheet row). */
+const WAITLIST_ENDPOINT = "";
+const FALLBACK_TO = "qoon@boogpunt.com";
 
 const form = document.getElementById("form");
 const done = document.getElementById("done");
@@ -260,20 +260,31 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = document.getElementById("name").value.trim();
   const email = form.email.value.trim();
+  const website = document.getElementById("website").value; // filled only by bots
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     note.className = "note"; note.textContent = "Enter an email address like you@studio.com."; form.email.focus(); return;
   }
-  if (!WAITLIST_ENDPOINT) {
-    note.className = "note"; note.textContent = "Sign-up opens very soon. Please check back in a little while."; return;
-  }
+  if (website) { form.hidden = true; done.hidden = false; return; }
   submit.disabled = true; note.className = "note"; note.textContent = "Adding you…";
   try {
-    const res = await fetch(WAITLIST_ENDPOINT, {
-      method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ name, email, _cc: WAITLIST_CC, _subject: "New AxiA waitlist sign-up", _template: "table" }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || String(data.success) !== "true") { note.className = "note"; note.textContent = data.message || "That didn’t go through. Please try again."; return; }
+    let ok, msg;
+    if (WAITLIST_ENDPOINT) {
+      // text/plain keeps this a simple request, which Apps Script accepts from another site
+      const res = await fetch(WAITLIST_ENDPOINT, {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ name, email, website, page: location.href }),
+      });
+      const data = await res.json().catch(() => ({}));
+      ok = res.ok && data.ok; msg = data.error;
+    } else {
+      const res = await fetch("https://formsubmit.co/ajax/" + FALLBACK_TO, {
+        method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ name, email, _subject: "New AxiA waitlist sign-up", _template: "table" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      ok = res.ok && String(data.success) === "true"; msg = data.message;
+    }
+    if (!ok) { note.className = "note"; note.textContent = msg || "That didn’t go through. Please try again."; return; }
     form.hidden = true; done.hidden = false; note.className = "note"; note.textContent = "";
   } catch {
     note.className = "note";
