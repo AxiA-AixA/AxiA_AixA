@@ -86,10 +86,15 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
 .slogan { margin: 32px 0 0; font-size: clamp(19px, 2.4vw, 24px); }
 .sub { margin: 14px 0 0; max-width: 34em; color: var(--muted); font-size: 15px; text-wrap: balance; }
 
+/* Hero backdrop: a faint reference graph (dots tied to a few tag hubs), echoing the product's graph view */
+#graph { position: absolute; left: 0; top: 0; width: 100%; height: 760px; z-index: 0; pointer-events: none;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent); mask-image: linear-gradient(#000 50%, transparent); }
+.hero > :not(#graph) { position: relative; z-index: 1; }
+
 /* Sign-up card */
 .join {
   display: grid; gap: 8px; width: min(380px, 100%); margin-top: 32px; padding: 14px;
-  border-radius: 18px; background: rgba(255,255,255,0.03); box-shadow: var(--glass-edge);
+  border-radius: 18px; background: #121213; box-shadow: var(--glass-edge); /* solid so the graph doesn't show through the fields */
 }
 .join input {
   width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 10px;
@@ -104,6 +109,8 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
 .join .pill[disabled] { opacity: 0.5; cursor: default; }
 .note { margin: 12px 0 0; min-height: 1.5em; font-size: 13px; color: var(--muted); }
 .note.ok { color: var(--ok); }
+.note a, .foot p a, .legal a { color: inherit; text-underline-offset: 3px; }
+.note a:hover, .foot p a:hover, .legal a:hover { color: var(--fg); }
 
 /* What AxiA does: three short steps under the sign-up card */
 .for { margin: 64px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
@@ -113,6 +120,8 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
 .step-no { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--muted); }
 .step h2 { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
 .step p { margin: 0; color: var(--muted); font-size: 14px; }
+.step-art { height: 56px; margin-bottom: 4px; color: var(--muted); }
+.step-art svg { display: block; height: 100%; width: auto; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
 .step .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .step .chips span { height: 22px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: 980px; background: var(--field); font-size: 11px; color: var(--fg); }
 @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } .for { margin-top: 48px; } }
@@ -137,9 +146,10 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
   .in, .done, .badge::after, .badge .dot { animation: none; }
 }
 
-/* Prototype video + soft light rising from the bottom edge (white, not blue) */
-.demo { position: relative; padding: 56px 28px 72px; overflow: hidden; }
-.demo::before {
+/* Prototype video */
+.demo { position: relative; padding: 56px 28px 40px; overflow: hidden; }
+/* Closing call to action, with soft light rising from the footer line (white, not blue) */
+.cta::before {
   content: ""; position: absolute; left: -10%; right: -10%; bottom: -30%; height: 100%; pointer-events: none;
   background: radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.16), rgba(255,255,255,0.05) 40%, transparent 70%);
 }
@@ -153,7 +163,6 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
   html { overflow-x: clip; }
   .card { overflow: visible; }
   .demo { height: 260vh; padding: 0; overflow: visible; }
-  .demo::before { display: none; }
   .stage { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; padding: 0 28px; }
   .demo figure { width: 100%; }
   .demo video { position: relative; z-index: 2; will-change: transform; }
@@ -163,6 +172,13 @@ h1 { margin: 40px 0 0; width: min(448px, 64%); }
 .rotate-hint svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 @media not ((max-width: 640px) and (prefers-reduced-motion: no-preference)) { .rotate-hint { display: none; } }
 .demo figcaption { margin-top: 14px; text-align: center; font-size: 13px; color: var(--muted); }
+
+.cta { position: relative; overflow: hidden; display: grid; justify-items: center; gap: 20px; text-align: center; padding: 40px 24px 96px; }
+.cta > * { position: relative; }
+.cta h2 { margin: 0; font-size: clamp(22px, 3vw, 30px); font-weight: 400; letter-spacing: -0.01em; text-wrap: balance; }
+.cta .pill { height: 44px; padding: 0 22px; font-size: 14px; gap: 6px; }
+.cta .pill .arr { display: inline-block; transition: transform 0.4s cubic-bezier(.16,1,.3,1); }
+.cta .pill:hover .arr { transform: translateX(4px); }
 
 /* Footer */
 footer { position: relative; border-top: 1px solid var(--line); padding: 48px 28px 40px; }
@@ -176,7 +192,7 @@ footer { position: relative; border-top: 1px solid var(--line); padding: 48px 28
 @media (max-width: 760px) { .foot { grid-template-columns: 1fr; } }
 
 .outro { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
-.wordmark { display: block; width: 100%; height: auto; margin: 48px auto 0; }
+.wordmark { display: block; width: min(100%, 720px); height: auto; margin: 56px auto 0; }
 .legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 12px; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
@@ -195,7 +211,8 @@ html { scroll-behavior: smooth; }
   </header>
 
   <section class="hero">
-    <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · London</a>
+    <canvas id="graph" aria-hidden="true"></canvas>
+    <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · Opening in small groups</a>
     <h1 class="in" style="--i:1"><svg class="logotype" viewBox="0 0 1000 383.7" fill="currentColor" role="img" aria-label="AxiA">
         <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
         <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
@@ -220,22 +237,25 @@ html { scroll-behavior: smooth; }
         <span>We’ll email you when early access opens.</span>
       </div>
     </div>
-    <p class="note in" style="--i:5" id="note" role="status">One email when early access opens. No spam.</p>
+    <p class="note in" style="--i:5" id="note" role="status">One email when early access opens. No spam. <a href="privacy.html">Privacy</a></p>
 
     <p class="for in" style="--i:6">For designers, art directors and studios</p>
     <ol class="steps in" style="--i:7" aria-label="What AxiA does">
       <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><rect x="4" y="6" width="14" height="14" rx="3" transform="rotate(-12 11 13)"/><rect x="26" y="4" width="12" height="12" rx="3" transform="rotate(-24 32 10)"/><rect x="6" y="36" width="12" height="12" rx="3" transform="rotate(20 12 42)"/><rect x="22" y="30" width="14" height="14" rx="3" transform="rotate(10 29 37)"/><path d="M48 28h16m-5-5 5 5-5 5"/><rect x="74" y="8" width="18" height="18" rx="3"/><rect x="96" y="8" width="18" height="18" rx="3"/><rect x="74" y="30" width="18" height="18" rx="3"/><rect x="96" y="30" width="18" height="18" rx="3"/></svg></div>
         <span class="step-no">01</span>
         <h2>Every save, in one library</h2>
         <p>Everything you’ve saved across apps and sites, in one place. Find the reference you saved two years ago in seconds, not an afternoon of scrolling.</p>
       </li>
       <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><rect x="4" y="6" width="44" height="44" rx="4"/><path d="M4 40l14-12 10 8 8-6 12 10"/><circle cx="36" cy="18" r="4"/><rect x="58" y="8" width="40" height="10" rx="5"/><rect x="58" y="23" width="56" height="10" rx="5"/><rect x="58" y="38" width="32" height="10" rx="5"/></svg></div>
         <span class="step-no">02</span>
         <h2>Every image, tagged the same way</h2>
         <p>AI tags every image with one fixed vocabulary for material, light, colour and composition. Search a combination and get exactly that.</p>
         <div class="chips" aria-label="Example tags"><span>matte</span><span>soft daylight</span><span>low saturation</span><span>editorial</span></div>
       </li>
       <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><circle cx="44" cy="28" r="22"/><circle cx="76" cy="28" r="22"/><path d="M60 12.9A22 22 0 0 1 60 43.1A22 22 0 0 1 60 12.9Z" fill="currentColor" fill-opacity="0.3" stroke="none"/></svg></div>
         <span class="step-no">03</span>
         <h2>Fewer rounds of “not quite”</h2>
         <p>See the patterns in what you save, then show a client or your team exactly what you mean. Everyone looks in the same direction and moves toward the same goal, long before the first draft.</p>
@@ -252,6 +272,11 @@ html { scroll-behavior: smooth; }
     </figure></div>
   </section>
 
+  <section class="cta">
+    <h2>Be among the first to see your taste.</h2>
+    <a class="pill solid" href="#join">Join the waitlist <span class="arr" aria-hidden="true">→</span></a>
+  </section>
+
   <footer>
     <div class="foot">
       <div>
@@ -266,14 +291,14 @@ html { scroll-behavior: smooth; }
       </div>
       <div>
         <h2>Your email</h2>
-        <p>We only use it to contact you about AxiA. Ask us any time and we’ll delete it.</p>
+        <p>We only use it to contact you about AxiA. Email <a href="mailto:qoon@boogpunt.com">qoon@boogpunt.com</a> any time and we’ll delete it. <a href="privacy.html">Privacy notice</a></p>
       </div>
     </div>
   </footer>
 </div>
 
 <div class="outro">
-    <div class="legal"><span>© 2026 AxiA · London</span><span>AxiA, every reference in relation</span></div>
+    <div class="legal"><span>© 2026 AxiA · London · <a href="privacy.html">Privacy</a></span><span>AxiA, every reference in relation</span></div>
     <svg class="wordmark" viewBox="0 0 1000 383.7" aria-hidden="true">
       <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#f5f5f7" stop-opacity="0.55"/><stop offset="1" stop-color="#f5f5f7" stop-opacity="0.16"/>
@@ -384,6 +409,50 @@ function tiltLogo() {
     if (!still) requestAnimationFrame(draw);
   }
   init(); addEventListener("resize", () => { init(); if (still) draw(0); }); still ? draw(0) : requestAnimationFrame(draw);
+})();
+
+/* ---------- Hero backdrop: a faint reference graph drifting behind the headline ----------
+   A handful of tag hubs near the edges (so the headline stays clear), each with references tied to it. */
+(() => {
+  const c = document.getElementById("graph"); let W = 0, H, ctx, hubs = [], dots = [], visible = true, small = false;
+  const names = ["Typography", "Monochrome", "3D", "Editorial", "Soft light"];
+  function init() {
+    [W, H, ctx] = fit(c);
+    small = W < 640;
+    const n = small ? 34 : 110, pick = () => hubs[Math.floor(Math.random() * hubs.length)];
+    // phones: hubs sit right on the edges, unlabelled, so they never cross the text
+    const spots = small ? [[0.02, 0.1], [0.98, 0.3], [0, 0.62], [1, 0.86]] : [[0.11, 0.2], [0.89, 0.16], [0.07, 0.7], [0.93, 0.62], [0.72, 0.03]];
+    hubs = spots.map(([x, y], i) => ({ x: x * W, y: y * H, p: i * 1.7, name: small ? "" : names[i] }));
+    dots = Array.from({ length: n }, () => {
+      const a = pick(), b = Math.random() < 0.35 ? pick() : null, ang = Math.random() * 6.28, d = 40 + Math.random() * Math.min(W, H) * (small ? 0.22 : 0.32);
+      return { a, b: b === a ? null : b, ox: Math.cos(ang) * d, oy: Math.sin(ang) * d * 0.8, r: Math.random() < 0.15 ? 3.2 : 1.2 + Math.random(), p: Math.random() * 6.28 };
+    });
+  }
+  function draw(t) {
+    if (visible) {
+      const s = t / 4000;
+      ctx.clearRect(0, 0, W, H);
+      for (const h of hubs) { h.cx = h.x + Math.sin(s + h.p) * 10; h.cy = h.y + Math.cos(s * 0.8 + h.p) * 8; }
+      ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.beginPath();
+      for (const d of dots) {
+        d.x = d.a.cx + d.ox + Math.sin(s * 1.3 + d.p) * 6; d.y = d.a.cy + d.oy + Math.cos(s + d.p) * 6;
+        ctx.moveTo(d.a.cx, d.a.cy); ctx.lineTo(d.x, d.y);
+        if (d.b) { ctx.moveTo(d.x, d.y); ctx.lineTo(d.b.cx, d.b.cy); }
+      }
+      ctx.stroke(); ctx.fillStyle = "#fff";
+      for (const d of dots) { ctx.globalAlpha = (small ? 0.6 : 1) * (0.3 + 0.25 * Math.sin(s * 2 + d.p)); ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 6.28); ctx.fill(); }
+      ctx.globalAlpha = 1; ctx.font = "11px Helvetica Neue, Helvetica, Arial, sans-serif"; ctx.textAlign = "center";
+      for (const h of hubs) {
+        ctx.beginPath(); ctx.arc(h.cx, h.cy, 8, 0, 6.28); ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillText(h.name, h.cx, h.cy + 24);
+      }
+    }
+    if (!still) requestAnimationFrame(draw);
+  }
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(c);
+  init();
+  addEventListener("resize", () => { if (c.getBoundingClientRect().width !== W) { init(); if (still) draw(0); } }); // phones fire resize on scroll; only redraw when the width changes
+  still ? draw(0) : requestAnimationFrame(draw);
 })();
 
 /* ---------- Phones: video turns sideways and fills the screen mid-scroll ---------- */
