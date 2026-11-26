@@ -1,0 +1,8 @@
+node_modules
+.next
+.env*.local
+# demo build output (scripts/demo-data.mjs)
+public/demo/
+
+# projects: client names and their answers (local data, not for git)
+data/
