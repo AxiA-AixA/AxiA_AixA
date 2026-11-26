@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AxiA Waitlist · v2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Say minimal. Mean the same thing. AxiA turns your references into one visual spec you and your client agree on before the first draft.">
+<!-- v2 of the waitlist page (strategy v2: brief alignment between designer and client).
+     The original page is ../index.html and is unchanged. The video, privacy notice and link-preview image are shared from ../ -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://axia-aixa.github.io/AxiA_AixA/v2/">
+<meta property="og:title" content="AxiA · Say minimal. Mean the same thing.">
+<meta property="og:description" content="Turn your references into one visual spec you and your client agree on, before the first draft. Join the early-access waitlist.">
+<meta property="og:image" content="https://images.weserv.nl/?url=axia-aixa.github.io/AxiA_AixA/og-image.svg&amp;output=jpg&amp;w=1200&amp;h=630&amp;q=90">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://images.weserv.nl/?url=axia-aixa.github.io/AxiA_AixA/og-image.svg&amp;output=jpg&amp;w=1200&amp;h=630&amp;q=90">
+<!-- Adobe Fonts (New Frank), the same kit as AxiA Web. Falls back to Helvetica Neue where it doesn't load. -->
+<link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css">
+<style>
+/* Same layout and look as ../index.html. Only the copy, the step drawings and the graph labels change. */
+:root {
+  color-scheme: dark;
+  --page: #000;
+  --card: #0b0b0c;
+  --fg: #f5f5f7;
+  --muted: #8e8e93;
+  --line: rgba(255, 255, 255, 0.10);
+  --field: rgba(255, 255, 255, 0.06);
+  --glass-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --focus: rgba(0, 113, 227, 0.5);
+  --ok: #7fd1a0;
+  --font: "new-frank", "Neue Haas Grotesk Text Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--page); color: var(--fg); font-family: var(--font);
+  font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 0;
+}
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+#stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+
+.card {
+  position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; overflow: hidden;
+  background: var(--card); border-radius: 22px; box-shadow: var(--glass-edge);
+}
+
+/* Nav */
+.nav { display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 28px; }
+.nav svg { display: block; height: 15px; width: auto; color: var(--fg); }
+.pill {
+  display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 18px;
+  border: 0; border-radius: 980px; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.pill.ghost { background: var(--field); color: var(--fg); box-shadow: var(--glass-edge); }
+.pill.solid { background: var(--fg); color: var(--card); }
+.pill { transition: opacity 0.3s ease; }
+.pill:hover { opacity: 0.85; }
+
+/* Hero */
+.hero { position: relative; display: grid; justify-items: center; text-align: center; padding: 64px 24px 0; }
+.badge {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 14px;
+  border-radius: 980px; background: var(--field); box-shadow: var(--glass-edge); color: var(--fg); font-size: 12px; text-decoration: none;
+}
+.badge::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  animation: sweep 6s cubic-bezier(.45,0,.55,1) 1.8s infinite;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(127,209,160,0.6); animation: pulse 3s cubic-bezier(.45,0,.55,1) infinite; }
+h1 { margin: 40px 0 0; width: min(448px, 64%); }
+.logotype { display: block; width: 100%; height: auto; color: #fff; }
+.slogan { margin: 32px 0 0; font-size: clamp(19px, 2.4vw, 24px); }
+.sub { margin: 14px 0 0; max-width: 34em; color: var(--muted); font-size: 15px; text-wrap: balance; }
+
+#graph { position: absolute; left: 0; top: 0; width: 100%; height: 760px; z-index: 0; pointer-events: none;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent); mask-image: linear-gradient(#000 50%, transparent); }
+.hero > :not(#graph) { position: relative; z-index: 1; }
+
+/* Sign-up card */
+.join {
+  display: grid; gap: 8px; width: min(380px, 100%); margin-top: 32px; padding: 14px;
+  border-radius: 18px; background: #121213; box-shadow: var(--glass-edge);
+}
+.join input {
+  width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 10px;
+  background: var(--field); color: var(--fg); font: inherit; font-size: 14px; outline: none; transition: box-shadow 0.35s ease, background-color 0.35s ease;
+}
+.join input::placeholder { color: var(--muted); }
+.join input:focus { box-shadow: 0 0 0 1px rgba(255,255,255,0.35), 0 0 24px rgba(255,255,255,0.08); }
+.join .pill { width: 100%; height: 44px; border-radius: 10px; font-size: 14px; gap: 6px; transition: transform 0.3s cubic-bezier(.16,1,.3,1), opacity 0.3s ease; }
+.join .pill .arr { display: inline-block; transition: transform 0.4s cubic-bezier(.16,1,.3,1); }
+.join .pill:hover .arr { transform: translateX(4px); }
+.join .pill:active { transform: scale(0.985); }
+.join .pill[disabled] { opacity: 0.5; cursor: default; }
+.note { margin: 12px 0 0; min-height: 1.5em; font-size: 13px; color: var(--muted); }
+.note.ok { color: var(--ok); }
+.note a, .foot p a, .legal a { color: inherit; text-underline-offset: 3px; }
+.note a:hover, .foot p a:hover, .legal a:hover { color: var(--fg); }
+
+/* Three steps */
+.for { margin: 64px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.steps { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(900px, 100%); margin: 16px auto 0; padding: 0; text-align: left; }
+.step { display: grid; align-content: start; gap: 8px; padding: 20px; border-radius: 16px; background: rgba(255,255,255,0.03); box-shadow: var(--glass-edge); transition: background-color 0.4s ease, transform 0.5s cubic-bezier(.16,1,.3,1); }
+.step:hover { background: rgba(255,255,255,0.055); transform: translateY(-2px); }
+.step-no { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--muted); }
+.step h2 { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.step p { margin: 0; color: var(--muted); font-size: 14px; }
+.step-art { height: 56px; margin-bottom: 4px; color: var(--muted); }
+.step-art svg { display: block; height: 100%; width: auto; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.step .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.step .chips span { height: 22px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: 980px; background: var(--field); font-size: 11px; color: var(--fg); }
+.step .chips .agree { color: var(--ok); }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } .for { margin-top: 48px; } }
+
+.done { display: grid; justify-items: center; gap: 10px; padding: 18px 8px 10px; }
+.done svg { width: 40px; height: 40px; }
+.done circle, .done path { fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.done { animation: rise 0.9s cubic-bezier(.16,1,.3,1) both; }
+.done circle { stroke-dasharray: 126; stroke-dashoffset: 126; animation: draw 0.9s cubic-bezier(.65,0,.35,1) 0.1s forwards; }
+.done path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw 0.5s cubic-bezier(.65,0,.35,1) 0.75s forwards; }
+.done strong { font-weight: 500; font-size: 16px; }
+.done span { color: var(--muted); font-size: 13px; }
+
+.in { animation: rise 1.4s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 130ms + 150ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes sweep { 0% { transform: translateX(-100%); } 45%, 100% { transform: translateX(100%); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(127,209,160,0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgba(127,209,160,0); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .in, .done, .badge::after, .badge .dot { animation: none; }
+}
+
+/* Prototype video */
+.demo { position: relative; padding: 56px 28px 40px; overflow: hidden; }
+.cta::before {
+  content: ""; position: absolute; left: -10%; right: -10%; bottom: -30%; height: 100%; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255,255,255,0.16), rgba(255,255,255,0.05) 40%, transparent 70%);
+}
+.demo figure { position: relative; margin: 0 auto; max-width: 980px; }
+.demo video {
+  display: block; width: 100%; height: auto; aspect-ratio: 1920 / 1066; border-radius: 14px; background: #000;
+  box-shadow: var(--glass-edge), 0 40px 120px rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  html { overflow-x: clip; }
+  .card { overflow: visible; }
+  .demo { height: 260vh; padding: 0; overflow: visible; }
+  .stage { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; padding: 0 28px; }
+  .demo figure { width: 100%; }
+  .demo video { position: relative; z-index: 2; will-change: transform; }
+  .demo figcaption { position: absolute; top: 100%; left: 0; right: 0; }
+  .rotate-hint { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 14px; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+}
+.rotate-hint svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+@media not ((max-width: 640px) and (prefers-reduced-motion: no-preference)) { .rotate-hint { display: none; } }
+.demo figcaption { margin-top: 14px; text-align: center; font-size: 13px; color: var(--muted); }
+
+.cta { position: relative; overflow: hidden; display: grid; justify-items: center; gap: 20px; text-align: center; padding: 40px 24px 96px; }
+.cta > * { position: relative; }
+.cta h2 { margin: 0; font-size: clamp(22px, 3vw, 30px); font-weight: 400; letter-spacing: -0.01em; text-wrap: balance; }
+.cta .pill { height: 44px; padding: 0 22px; font-size: 14px; gap: 6px; }
+.cta .pill .arr { display: inline-block; transition: transform 0.4s cubic-bezier(.16,1,.3,1); }
+.cta .pill:hover .arr { transform: translateX(4px); }
+
+/* Footer */
+footer { position: relative; border-top: 1px solid var(--line); padding: 48px 28px 40px; }
+.foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
+.foot h2 { margin: 0 0 12px; font-size: 15px; font-weight: 400; }
+.foot p { margin: 0 0 20px; max-width: 22em; color: var(--muted); font-size: 14px; }
+.foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
+.foot ul a { text-decoration: none; }
+.foot ul a:hover, .contact:hover { color: var(--fg); }
+.contact { display: inline-flex; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); text-decoration: none; font-size: 14px; }
+@media (max-width: 760px) { .foot { grid-template-columns: 1fr; } }
+
+.outro { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+.wordmark { display: block; width: min(100%, 720px); height: auto; margin: 56px auto 0; }
+.legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; font-size: 12px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<div class="card">
+  <header class="nav">
+    <a href="#" aria-label="AxiA">
+      <svg viewBox="0 0 1000 532.7" fill="currentColor" aria-hidden="true"><path d="M1000,19.7V5c0-3.6-3.7-6-7-4.6l-484.8,217.3c-5.2,2.3-11.2,2.3-16.4,0L7,.4C3.7-1,0,1.4,0,5v49.6C0,59.7,2,64.7,5.5,68.4l253.1,265.1c4.4,4.6,3.4,12.1-2,15.4L4.7,504.5C1.8,506.3,0,509.6,0,513v14.7c0,3.6,3.7,6,7,4.6l484.8-217.3c5.2-2.3,11.2-2.3,16.4,0l484.8,217.3c3.3,1.5,7-.9,7-4.6v-49.6c0-5.1-2-10.1-5.5-13.8l-253.1-265.1c-4.4-4.6-3.4-12.1,2-15.4L995.3,28.2c2.9-1.8,4.7-5,4.7-8.5Z"/></svg>
+    </a>
+    <a class="pill ghost" href="#join">Join waitlist</a>
+  </header>
+
+  <section class="hero">
+    <canvas id="graph" aria-hidden="true"></canvas>
+    <a class="badge in" style="--i:0" href="#join"><span class="dot" aria-hidden="true"></span>Early access · Opening to studios first</a>
+    <h1 class="in" style="--i:1"><svg class="logotype" viewBox="0 0 1000 383.7" fill="currentColor" role="img" aria-label="AxiA">
+        <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
+        <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
+      </svg></h1>
+    <p class="slogan in" style="--i:2">Say minimal. Mean the same thing.</p>
+    <p class="sub in" style="--i:3">AxiA turns your references into one visual spec<br>you and your client agree on, before the first draft.</p>
+
+    <div class="join in" style="--i:4" id="join">
+      <form id="form" novalidate>
+        <div style="display:grid;gap:8px">
+          <label for="name" hidden>Name</label>
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="Your name">
+          <label for="email" hidden>Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@studio.com" required>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+          <button class="pill solid" id="submit" type="submit">Join the waitlist <span class="arr" aria-hidden="true">→</span></button>
+        </div>
+      </form>
+      <div class="done" id="done" hidden>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/><path d="M14 22.5l5.5 5.5L30 17"/></svg>
+        <strong>You’re on the list.</strong>
+        <span>We’ll email you when early access opens.</span>
+      </div>
+    </div>
+    <p class="note in" style="--i:5" id="note" role="status">One email when early access opens. No spam. <a href="../privacy.html">Privacy</a></p>
+
+    <p class="for in" style="--i:6">For studios and freelancers who work with clients</p>
+    <ol class="steps in" style="--i:7" aria-label="How AxiA works">
+      <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><rect x="4" y="6" width="40" height="44" rx="4"/><path d="M4 40l12-10 9 7 7-5 12 9"/><circle cx="32" cy="18" r="4"/><rect x="56" y="14" width="58" height="28" rx="6"/><path d="M66 28h28m-6-6 6 6-6 6"/><circle cx="104" cy="28" r="3" fill="currentColor" stroke="none"/></svg></div>
+        <span class="step-no">01</span>
+        <h2>Send from anywhere</h2>
+        <p>Right-click any image on Instagram, Pinterest or any site and choose “Send to AxiA”. It lands in the project you’re working on.</p>
+      </li>
+      <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><rect x="4" y="6" width="44" height="44" rx="4"/><path d="M12 18h28M12 28h20M12 38h24"/><path d="M54 28h10m-4-4 4 4-4 4"/><rect x="70" y="8" width="44" height="10" rx="5"/><rect x="70" y="23" width="36" height="10" rx="5"/><rect x="70" y="38" width="44" height="10" rx="5"/></svg></div>
+        <span class="step-no">02</span>
+        <h2>One standard, one visual spec</h2>
+        <p>AI tags every reference with one fixed vocabulary, then writes what the look means for this project: colour, light, material, space.</p>
+        <div class="chips" aria-label="Example spec for “minimal”"><span>low saturation</span><span>60%+ whitespace</span><span>soft diffused light</span><span>matte</span></div>
+      </li>
+      <li class="step">
+        <div class="step-art" aria-hidden="true"><svg viewBox="0 0 120 56"><circle cx="44" cy="28" r="22"/><circle cx="76" cy="28" r="22"/><path d="M60 12.9A22 22 0 0 1 60 43.1A22 22 0 0 1 60 12.9Z" fill="currentColor" fill-opacity="0.3" stroke="none"/></svg></div>
+        <span class="step-no">03</span>
+        <h2>Your client agrees in one link</h2>
+        <p>Send a link. No sign-up. Your client agrees, pushes back or comments on each point, so you start the first draft from a brief you both signed off.</p>
+        <div class="chips" aria-label="Example client responses"><span class="agree">✓ low saturation</span><span class="agree">✓ matte</span><span>? soft light</span></div>
+      </li>
+    </ol>
+  </section>
+
+  <section class="demo" aria-label="Product demo">
+    <div class="stage"><figure>
+      <p class="rotate-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 12a9 9 0 0 1 4-7.5M21 12a9 9 0 0 1-4 7.5M3 4.5v3h3M21 19.5v-3h-3"/></svg>Keep scrolling — the video turns sideways</p>
+      <!-- Same screen recording as the original page, shared from ../axia-demo_2.mp4 -->
+      <video src="../axia-demo_2.mp4#t=0.1" autoplay muted loop playsinline preload="auto"></video>
+      <figcaption>The AxiA prototype: references tagged by one fixed standard, the base for every project spec.</figcaption>
+    </figure></div>
+  </section>
+
+  <section class="cta">
+    <h2>Agree on the look before the first draft.</h2>
+    <a class="pill solid" href="#join">Join the waitlist <span class="arr" aria-hidden="true">→</span></a>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <div>
+        <h2>Get in touch</h2>
+        <p>Run a studio or work with clients as a freelancer? We’d love to test AxiA on one of your real projects.</p>
+        <a class="contact" href="#join">Join the waitlist <span aria-hidden="true">→</span></a>
+      </div>
+      <div>
+        <h2>What happens next</h2>
+        <p>Early access opens to small groups of studios and freelancers first. We’ll email you when it’s your turn.</p>
+      </div>
+      <div>
+        <h2>Your email</h2>
+        <p>We only use it to contact you about AxiA. Email <a href="mailto:qoon@boogpunt.com">qoon@boogpunt.com</a> any time and we’ll delete it. <a href="../privacy.html">Privacy notice</a></p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<div class="outro">
+    <div class="legal"><span>© 2026 AxiA · London · <a href="../privacy.html">Privacy</a></span><span>AxiA, one standard for visual language</span></div>
+    <svg class="wordmark" viewBox="0 0 1000 383.7" aria-hidden="true">
+      <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f5f5f7" stop-opacity="0.55"/><stop offset="1" stop-color="#f5f5f7" stop-opacity="0.16"/>
+      </linearGradient></defs>
+      <g fill="url(#fade)">
+        <path d="M629.3,64.2c23,0,35.7-11.6,35.7-32.1S649.5,0,628.7,0s-35.1,14.2-35.1,32.6,9.2,31.6,35.7,31.6Z"/>
+        <path d="M856.2,12.1h-22.4l-139.6,350h-31.4V122.1h-194.7v21.1h29.3v3.2l-61.2,76.4-74.2-100.6h-62.7l102.3,132.6-84.2,107.4h-10L171.9,12.1h-22.4L0,383.7h34.7l42.7-113.7h130.3l40.4,113.7h89.4l82.5-107.4,80.5,107.4h218.3l42.7-113.7h130.3l40.4,113.7h67.6L856.2,12.1ZM87.9,241.7l57-142.7h1.7l52.5,142.7h-111.2ZM608,362.1h-61l-92.3-120,83-98.9h70.4v219ZM772,241.7l57.2-142.7h1.7l52.4,142.7h-111.2Z"/>
+      </g>
+    </svg>
+</div>
+
+<script>
+/* ---------- Waitlist ----------
+   Same Google Apps Script endpoint as the original page. Each sign-up sends page: location.href,
+   so rows from this page show …/v2/ in the sheet and can be told apart from the original. */
+const WAITLIST_ENDPOINT = "https://script.google.com/macros/s/AKfycbxS1dx156Q4R51hzwchxyUkwLWrbev4WPsYPw3I2RH6DwqpnBLNUFCKTXcl3j2gDH-l/exec";
+const FALLBACK_TO = "qoon@boogpunt.com";
+
+const form = document.getElementById("form");
+const done = document.getElementById("done");
+const note = document.getElementById("note");
+const submit = document.getElementById("submit");
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = document.getElementById("name").value.trim();
+  const email = form.email.value.trim();
+  const website = document.getElementById("website").value; // filled only by bots
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    note.className = "note"; note.textContent = "Enter an email address like you@studio.com."; form.email.focus(); return;
+  }
+  if (website) { form.hidden = true; done.hidden = false; return; }
+  submit.disabled = true; note.className = "note"; note.textContent = "Adding you…";
+  try {
+    let ok, msg;
+    if (WAITLIST_ENDPOINT) {
+      const res = await fetch(WAITLIST_ENDPOINT, {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ name, email, website, page: location.href }),
+      });
+      const data = await res.json().catch(() => ({}));
+      ok = res.ok && data.ok; msg = data.error;
+    } else {
+      const res = await fetch("https://formsubmit.co/ajax/" + FALLBACK_TO, {
+        method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ name, email, _subject: "New AxiA waitlist sign-up (v2)", _template: "table" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      ok = res.ok && String(data.success) === "true"; msg = data.message;
+    }
+    if (!ok) { note.className = "note"; note.textContent = msg || "That didn’t go through. Please try again."; return; }
+    form.hidden = true; done.hidden = false; note.className = "note"; note.textContent = "";
+  } catch {
+    note.className = "note";
+    note.textContent = location.protocol === "file:"
+      ? "Sign-up only works on the published page (https://…), not on a file opened from your computer."
+      : "That didn’t go through. Check your connection and try again.";
+  } finally { submit.disabled = false; }
+});
+
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+function fit(c) { const b = c.getBoundingClientRect(); c.width = b.width * DPR; c.height = b.height * DPR; const x = c.getContext("2d"); x.setTransform(DPR, 0, 0, DPR, 0, 0); return [b.width, b.height, x]; }
+
+/* ---------- Gyro: phone tilt nudges the stars and the footer logo gradient ---------- */
+const tilt = { x: 0, y: 0 }, aim = { x: 0, y: 0 };
+if (!still) {
+  const clamp = (v) => Math.max(-1, Math.min(1, v));
+  let base = null;
+  addEventListener("deviceorientation", (e) => {
+    if (e.gamma == null) return;
+    base ??= { g: e.gamma, b: e.beta };
+    aim.x = clamp((e.gamma - base.g) / 25); aim.y = clamp((e.beta - base.b) / 25);
+  });
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    const ask = () => DeviceOrientationEvent.requestPermission()
+      .then((r) => { if (r === "granted") removeEventListener("click", ask); }).catch(() => {});
+    addEventListener("click", ask);
+  }
+}
+const fade = document.getElementById("fade"), fadeTop = fade.querySelector("stop");
+function tiltLogo() {
+  const a = tilt.x * 0.5, sx = 0.5 * Math.sin(a), sy = 0.5 * Math.cos(a);
+  fade.setAttribute("x1", 0.5 - sx); fade.setAttribute("y1", 0.5 - sy);
+  fade.setAttribute("x2", 0.5 + sx); fade.setAttribute("y2", 0.5 + sy);
+  fadeTop.setAttribute("stop-opacity", 0.55 + 0.15 * tilt.y);
+}
+
+/* ---------- Star field behind the card ---------- */
+(() => {
+  const c = document.getElementById("stars"); let W, H, ctx, stars = [];
+  function init() {
+    [W, H, ctx] = fit(c);
+    stars = Array.from({ length: Math.round(W * H / 5000) }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 0.9 + 0.2, p: Math.random() * 6.28 }));
+  }
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    tilt.x += (aim.x - tilt.x) * 0.06; tilt.y += (aim.y - tilt.y) * 0.06;
+    tiltLogo();
+    const ox = tilt.x * 24, oy = tilt.y * 24;
+    for (const s of stars) {
+      const x = (((s.x + ox * s.r) % W) + W) % W, y = (((s.y + oy * s.r) % H) + H) % H;
+      ctx.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t / 2600 + s.p)); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, s.r, 0, 6.28); ctx.fill();
+    }
+    if (!still) requestAnimationFrame(draw);
+  }
+  init(); addEventListener("resize", () => { init(); if (still) draw(0); }); still ? draw(0) : requestAnimationFrame(draw);
+})();
+
+/* ---------- Hero backdrop: a faint reference graph; hubs are now spec tags ---------- */
+(() => {
+  const c = document.getElementById("graph"); let W = 0, H, ctx, hubs = [], dots = [], visible = true, small = false;
+  const names = ["Low saturation", "Soft light", "Matte", "Whitespace", "Editorial"];
+  function init() {
+    [W, H, ctx] = fit(c);
+    small = W < 640;
+    const n = small ? 34 : 110, pick = () => hubs[Math.floor(Math.random() * hubs.length)];
+    const spots = small ? [[0.02, 0.1], [0.98, 0.3], [0, 0.62], [1, 0.86]] : [[0.11, 0.2], [0.89, 0.16], [0.07, 0.7], [0.93, 0.62], [0.72, 0.03]];
+    hubs = spots.map(([x, y], i) => ({ x: x * W, y: y * H, p: i * 1.7, name: small ? "" : names[i] }));
+    dots = Array.from({ length: n }, () => {
+      const a = pick(), b = Math.random() < 0.35 ? pick() : null, ang = Math.random() * 6.28, d = 40 + Math.random() * Math.min(W, H) * (small ? 0.22 : 0.32);
+      return { a, b: b === a ? null : b, ox: Math.cos(ang) * d, oy: Math.sin(ang) * d * 0.8, r: Math.random() < 0.15 ? 3.2 : 1.2 + Math.random(), p: Math.random() * 6.28 };
+    });
+  }
+  function draw(t) {
+    if (visible) {
+      const s = t / 4000;
+      ctx.clearRect(0, 0, W, H);
+      for (const h of hubs) { h.cx = h.x + Math.sin(s + h.p) * 10; h.cy = h.y + Math.cos(s * 0.8 + h.p) * 8; }
+      ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.beginPath();
+      for (const d of dots) {
+        d.x = d.a.cx + d.ox + Math.sin(s * 1.3 + d.p) * 6; d.y = d.a.cy + d.oy + Math.cos(s + d.p) * 6;
+        ctx.moveTo(d.a.cx, d.a.cy); ctx.lineTo(d.x, d.y);
+        if (d.b) { ctx.moveTo(d.x, d.y); ctx.lineTo(d.b.cx, d.b.cy); }
+      }
+      ctx.stroke(); ctx.fillStyle = "#fff";
+      for (const d of dots) { ctx.globalAlpha = (small ? 0.6 : 1) * (0.3 + 0.25 * Math.sin(s * 2 + d.p)); ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 6.28); ctx.fill(); }
+      ctx.globalAlpha = 1; ctx.font = "11px Helvetica Neue, Helvetica, Arial, sans-serif"; ctx.textAlign = "center";
+      for (const h of hubs) {
+        ctx.beginPath(); ctx.arc(h.cx, h.cy, 8, 0, 6.28); ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillText(h.name, h.cx, h.cy + 24);
+      }
+    }
+    if (!still) requestAnimationFrame(draw);
+  }
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(c);
+  init();
+  addEventListener("resize", () => { if (c.getBoundingClientRect().width !== W) { init(); if (still) draw(0); } });
+  still ? draw(0) : requestAnimationFrame(draw);
+})();
+
+/* ---------- Phones: video turns sideways and fills the screen mid-scroll ---------- */
+(() => {
+  const phone = matchMedia("(max-width: 640px) and (prefers-reduced-motion: no-preference)");
+  const demo = document.querySelector(".demo"), vid = demo.querySelector("video"), cap = demo.querySelector("figcaption"), hint = demo.querySelector(".rotate-hint");
+  let queued = false;
+  function update() {
+    queued = false;
+    if (!phone.matches) { vid.style.transform = vid.style.borderRadius = cap.style.opacity = ""; return; }
+    const r = demo.getBoundingClientRect();
+    const t = Math.min(1, Math.max(0, -r.top / (r.height - innerHeight)));
+    const e = Math.min(1, Math.sin(Math.PI * t) * 1.6);
+    const k = e * e * (3 - 2 * e);
+    const full = Math.min(innerHeight / vid.offsetWidth, document.documentElement.clientWidth / vid.offsetHeight);
+    const s = 1 + (full - 1) * k;
+    vid.style.transform = `rotate(${90 * k}deg) scale(${s})`;
+    vid.style.borderRadius = `${14 * (1 - k) / s}px`;
+    cap.style.opacity = hint.style.opacity = 1 - k;
+  }
+  const ask = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+  addEventListener("scroll", ask, { passive: true }); addEventListener("resize", ask); phone.addEventListener("change", ask); update();
+})();
+</script>
+</body>
+</html>
