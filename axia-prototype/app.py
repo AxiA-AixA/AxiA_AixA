@@ -18,12 +18,14 @@ import axia_tagger as T
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "axia_data"
 IMG = DATA / "images"
+THUMBS = DATA / "thumbs"  # small copies for grids and the map, made on first request
 LIB = DATA / "library.json"
 SETTINGS = DATA / "settings.json"
 COURT = DATA / "court.json"
 LOCK = threading.Lock()
 Q = queue.Queue()
 STATUS = {"working": "", "note": ""}
+IMMUTABLE = "public, max-age=31536000, immutable"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
 
 DEFAULT_SETTINGS = {
@@ -159,6 +161,29 @@ def colour_name(h, s, v):
     if h < 255: return "Blue"
     if h < 290: return "Purple"
     return "Pink"
+
+def thumb_of(name, size=400):
+    """A copy of a library image at most `size` px on its longest side (JPEG), made once and kept.
+    Grids and the map show hundreds of images; sending the originals made them slow.
+    Without Pillow, or for an unreadable file, the original is returned."""
+    src = IMG / Path(name).name
+    if not src.exists():
+        return None
+    out = THUMBS / f"{src.stem}-{size}.jpg"
+    if out.exists():
+        return out
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(src) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            im.thumbnail((size, size))
+            THUMBS.mkdir(parents=True, exist_ok=True)
+            tmp = out.with_name(f"{out.stem}.{threading.get_ident()}.tmp")  # two requests may make it at once
+            im.save(tmp, "JPEG", quality=82)
+            tmp.replace(out)
+        return out
+    except Exception:
+        return src
 
 def colors_of(path, share=0.12, top=3):
     """Main colours of an image as tag names: those covering at least `share` of it, biggest first."""
@@ -408,12 +433,12 @@ class H(BaseHTTPRequestHandler):
             self.send_header("access-control-allow-headers", "content-type")
             self.send_header("access-control-allow-methods", "GET, POST, OPTIONS")
 
-    def send(self, obj, code=200, ctype="application/json; charset=utf-8"):
+    def send(self, obj, code=200, ctype="application/json; charset=utf-8", cache="no-store"):
         body = obj if isinstance(obj, (bytes, bytearray)) else json.dumps(obj, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("content-type", ctype)
         self.send_header("content-length", str(len(body)))
-        self.send_header("cache-control", "no-store")
+        self.send_header("cache-control", cache)
         self.cors()
         self.end_headers()
         self.wfile.write(body)
@@ -437,10 +462,16 @@ class H(BaseHTTPRequestHandler):
             f = (HERE / p.lstrip("/")).resolve()
             if (HERE / "ui") in f.parents and f.exists():
                 return self.send(f.read_bytes(), ctype=mimetypes.guess_type(str(f))[0] or "application/octet-stream")
+        # Images are named by a hash of their content, so a browser may keep them for good.
         if p.startswith("/img/"):
             f = (IMG / Path(p[5:]).name)
             if f.exists():
-                return self.send(f.read_bytes(), ctype=mimetypes.guess_type(str(f))[0] or "image/jpeg")
+                return self.send(f.read_bytes(), ctype=mimetypes.guess_type(str(f))[0] or "image/jpeg", cache=IMMUTABLE)
+            return self.send({"error": "not found"}, 404)
+        if p.startswith("/thumb/"):
+            f = thumb_of(urllib.parse.unquote(p[7:]))
+            if f:
+                return self.send(f.read_bytes(), ctype=mimetypes.guess_type(str(f))[0] or "image/jpeg", cache=IMMUTABLE)
             return self.send({"error": "not found"}, 404)
         if p == "/api/ping":
             return self.send({"ok": True, "app": "axia", "version": "0.1"})
@@ -529,6 +560,7 @@ class H(BaseHTTPRequestHandler):
                         return self.send({"error": "No such item"}, 404)
                     if data.get("delete"):
                         (IMG / it["file"]).unlink(missing_ok=True)
+                        (THUMBS / f"{Path(it['file']).stem}-400.jpg").unlink(missing_ok=True)
                         del lib["items"][data["id"]]
                     else:
                         for k in ("user_tags", "group_name"):
