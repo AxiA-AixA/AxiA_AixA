@@ -2,10 +2,13 @@
 // AxiA Web v2 reads that library and adds to it (files, links) on a project's behalf.
 export const AXIA = "http://127.0.0.1:8770";
 
-// Designer pages run on the same computer as the analyser, so they load thumbnails from it
-// directly (fast). A shared brief can be opened elsewhere, so it goes through /api/img instead.
-export const directImg = (file) => `http://localhost:8770/img/${encodeURIComponent(file)}`;
-export const imgUrl = (file) => `/api/img/${encodeURIComponent(file)}`;
+// Designer pages run on the same computer as the analyser, so they load images from it directly
+// (fast). A shared brief can be opened elsewhere, so it goes through /api/img instead.
+// `thumb` is a small copy (400 px) for grids and the map; `image` is the original.
+const direct = (kind, file) => `http://localhost:8770/${kind}/${encodeURIComponent(file)}`;
+export const directImg = (file) => direct("img", file);
+export const directThumb = (file) => direct("thumb", file);
+export const imgUrl = (file, { thumb = false } = {}) => `/api/img/${encodeURIComponent(file)}${thumb ? "?thumb=1" : ""}`;
 
 // The prototype's library: { online, queue, items: [{ id, file, url, title, image, fields, group_name, status, tags, colors, added }] }.
 // status: "queued" (waiting for AI), "tagged", "failed", "new" (auto-tagging off).
@@ -20,7 +23,7 @@ export async function readLibrary() {
 
 function toEntry(i) {
   return {
-    id: i.id, file: i.file, url: i.page_url || null, title: i.title, image: directImg(i.file), added: i.added,
+    id: i.id, file: i.file, url: i.page_url || null, title: i.title, image: directImg(i.file), thumb: directThumb(i.file), added: i.added,
     pages: i.pages ?? [], imageUrl: i.image_url ?? "",
     fields: i.fields?.length ? i.fields : i.field ? [i.field] : [], group_name: i.group_name, status: i.status, error: i.error ?? null,
     tags: [...new Set([...(i.user_tags ?? []), ...(i.tags ?? [])])], colors: i.colors ?? [],

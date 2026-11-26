@@ -2,10 +2,12 @@
   "name": "axia-web-v2",
   "version": "0.2.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start -p 3001"
+    "start": "next start -p 3001",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "next": "16.2.7",

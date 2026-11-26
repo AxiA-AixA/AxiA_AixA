@@ -3,7 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Projects live in data/projects.json (kept out of git: it holds client names and answers).
-// Read-modify-write is synchronous, so concurrent requests can't interleave.
+// Every change is a synchronous read-modify-write, so requests in this server can't interleave.
+// The file is written to a temporary file and renamed into place, so a crash mid-write can't
+// leave half a file. A file that can't be read is an error, not an empty list: treating it as
+// empty would let the next save overwrite every project.
 //
 // Project: {
 //   id, name, client, word,            // word = the client's own word for the look, e.g. "minimal"
@@ -18,12 +21,21 @@ const root = /*turbopackIgnore: true*/ process.cwd();
 const FILE = path.join(root, "data/projects.json");
 
 export function readProjects() {
-  try { return JSON.parse(fs.readFileSync(FILE, "utf8")); } catch { return []; }
+  let text;
+  try { text = fs.readFileSync(FILE, "utf8"); } catch (e) {
+    if (e.code === "ENOENT") return []; // no projects yet
+    throw e;
+  }
+  try { return JSON.parse(text); } catch {
+    throw new Error(`${FILE} is not valid JSON. Fix or move it; AxiA won't overwrite it.`);
+  }
 }
 
 function write(list) {
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(list, null, 2));
+  const tmp = `${FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
+  fs.renameSync(tmp, FILE);
 }
 
 export const newId = (bytes = 6) => crypto.randomBytes(bytes).toString("hex");

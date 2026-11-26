@@ -9,3 +9,6 @@ __pycache__/
 *.pyc
 .DS_Store
 *.zip
+
+# 썸네일 캐시 (axia-prototype가 자동으로 만듦)
+axia-prototype/axia_data/thumbs/

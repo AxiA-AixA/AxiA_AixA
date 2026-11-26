@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-// Where a project stands, as the same four steps the project page shows, and the next one in words.
-function stage(p) {
-  if (p.refs < 5) return { step: 0, next: p.refs ? `Add ${5 - p.refs} more reference${5 - p.refs === 1 ? "" : "s"}` : "Add references" };
-  if (!p.shared) return { step: 1, next: "Review the spec and share it" };
-  if (p.answered < p.items) return { step: 2, next: p.answered ? `Client answered ${p.answered} of ${p.items}` : "Waiting for your client" };
-  return { step: 3, next: p.agreed === p.items ? "Agreed brief ready" : `${p.items - p.agreed} point${p.items - p.agreed === 1 ? "" : "s"} to discuss` };
-}
+import { cardStage, plural } from "@/lib/status";
 
 // Home: the designer's projects. Each one turns its references into a visual spec for one client.
 export default function Projects() {
@@ -74,18 +67,18 @@ export default function Projects() {
                 <div className="cover">
                   {[0, 1, 2, 3].map((i) => {
                     const ref = lib.byId.get(p.cover[i]);
-                    return ref ? <img key={i} src={ref.image} alt="" loading="lazy" /> : <span key={i} />;
+                    return ref ? <img key={i} src={ref.thumb} alt="" loading="lazy" /> : <span key={i} />;
                   })}
                 </div>
                 <div className="card-text">
                   <h2>{p.name}</h2>
                   <p>{[p.client, p.word && `“${p.word}”`].filter(Boolean).join(" · ") || "No client yet"}</p>
                   {(() => {
-                    const s = stage(p);
+                    const s = cardStage(p);
                     return (
                       <div className="card-stage">
                         <span className="dots" aria-hidden="true">{[0, 1, 2, 3].map((i) => <i key={i} className={i < s.step ? "done" : i === s.step ? "now" : ""} />)}</span>
-                        <span><b>{s.next}</b> · {p.refs} reference{p.refs === 1 ? "" : "s"}</span>
+                        <span><b>{s.next}</b> · {plural(p.refs, "reference")}</span>
                       </div>
                     );
                   })()}
