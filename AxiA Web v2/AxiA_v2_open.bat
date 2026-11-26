@@ -28,9 +28,15 @@ if not errorlevel 1 (
   exit /b
 )
 
-echo Starting AxiA v2... (first start can take ~30s on Google Drive)
 start "" /b powershell -NoProfile -Command "while ($true) { try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 '%URL%' | Out-Null; break } catch { Start-Sleep 1 } }; %OPEN%"
+rem Fast mode: build once, then serve the built site (pages open instantly).
+rem After changing the code, delete the .next folder (or use "npm run dev" to edit live).
 rem Run Next directly: node_modules\.bin made on a Mac has no Windows launcher, so npx can fail.
-node node_modules\next\dist\bin\next dev -p 3001
+if not exist .next\BUILD_ID (
+  echo Preparing AxiA v2... first time takes about a minute
+  node node_modules\next\dist\bin\next build
+)
+echo Starting AxiA v2...
+node node_modules\next\dist\bin\next start -p 3001
 rem Keep the window open so any error stays readable.
 pause

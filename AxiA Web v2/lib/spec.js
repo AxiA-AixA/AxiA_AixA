@@ -85,7 +85,9 @@ export function buildSpec(refs, edits = {}, custom = []) {
   for (const it of items) {
     it.meaning = MEANING[it.tag] ?? "";
     it.note = edits[it.key]?.note ?? "";
-    it.off = !!edits[it.key]?.off;
+    // Supporting points (seen in under 60% of references) start switched off, so only what most
+    // references share goes to the client unless the designer turns more on.
+    it.off = edits[it.key]?.off ?? it.share < CLEAR;
   }
   for (const c of custom) {
     items.push({ key: c.key, tag: c.text, category: "Added by designer", count: 0, share: 0, examples: [], meaning: "", note: edits[c.key]?.note ?? "", off: !!edits[c.key]?.off, custom: true });
