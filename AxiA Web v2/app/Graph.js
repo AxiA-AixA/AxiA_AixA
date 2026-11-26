@@ -1,11 +1,27 @@
 "use client";
 
+// The reference map: every library image as a dot, linked to hubs (its colours, types, tags…).
+// This file holds the React side: what is shown (filters, grouping, project) and the panels.
+// The rest lives in small modules:
+//   lib/graph/terms.js   grouping, search terms, suggestions (pure)
+//   lib/graph/layout.js  force layout with a quadtree (pure)
+//   lib/graph/thumbs.js  image loading into small decoded thumbnails
+//   app/graph/camera.js  world <-> screen, zoom, fit
+//   app/graph/draw.js    canvas drawing
+//   app/graph/input.js   mouse, wheel and touch
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { hostOf } from "@/lib/links";
+import { GROUP_BY, KIND, countTerms, fieldNames, passes, suggest } from "@/lib/graph/terms";
+import { place, step } from "@/lib/graph/layout";
+import { loadThumb } from "@/lib/graph/thumbs";
+import { fetchLibrary } from "@/lib/client/library";
+import { camMoved, fitStep, toScreen } from "./graph/camera";
+import { drawMap } from "./graph/draw";
+import { attachInput } from "./graph/input";
 
-// Display values, tunable from the panel under the header. Find good ones, then
-// bake them in as the defaults here.
+// Display settings. The sliders are a design tool: they show only with ?tune in the address.
 const TUNING = [
   { key: "spread", label: "Spread (dot repulsion)", min: 20, max: 600, step: 10, value: 400 },
   { key: "dot", label: "Dot size", min: 2, max: 12, step: 0.5, value: 12 },
@@ -15,197 +31,55 @@ const TUNING = [
   { key: "hover", label: "Hover size (px)", min: 20, max: 160, step: 2, value: 60 },
   { key: "corner", label: "Corner radius when large (px)", min: 0, max: 30, step: 1, value: 10 },
 ];
-const HUB_DOTS = 2; // hub thumbnail circle = this × "Dot size" (radius, screen px)
-const SIDE_W = 340;    // width of the right-hand panel column (matches .side in globals.css)
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
+const HUB_DOTS = 2;      // hub circle radius = this × dot size (screen px)
+const SIDE_W = 340;      // right-hand panel column (matches .side in globals.css)
+const POLL_MS = 5000;    // library refresh, so new analysis results move in live
+const LAYOUT_MS = 8;     // layout time per frame
 const STORE = "axia-tuning";
-const FILTERS = "axia-filters"; // searched tags + view, kept for this browser tab
-const THUMB = 256;       // thumbnails are kept at this size (px, square): enough for the hover size on retina
-const LOAD_AT_ONCE = 6;  // images fetched at the same time
-const loadQueue = [];
-let loading = 0;
-let kept = null; // graph layout + camera, kept while visiting other pages (until a reload)
+const FILTERS = "axia-filters"; // searched terms + grouping + project, kept for this browser tab
 
-// Project types (axia-prototype's "field" codes) as shown on the graph.
-const FIELD_NAMES = {
-  "3d": "3D", graphic: "Graphic", photo: "Photo", architecture: "Architecture", typography: "Typography",
-  painting: "Painting", package: "Package", video: "Video", ui_ux: "UI/UX", editorial: "Editorial", ai_image: "AI Image",
-};
-const fieldNames = (e) => (e.fields.length ? e.fields.map((f) => FIELD_NAMES[f] ?? f) : [e.status === "tagged" ? "Other" : "Analysing"]);
-
-// What the hubs are. An image links to every hub it belongs to, so one that is e.g. both
-// Graphic and Package sits between those two. Color (default) = main colours, Type = project types, Tags = style tags.
-const GROUP_BY = {
-  Color: (e) => (e.colors.length ? e.colors : ["No colour"]),
-  Type: fieldNames,
-  Tags: (e) => (e.tags.length ? e.tags : ["Untagged"]),
-  Group: (e) => [e.group_name || "untagged"],
-  Platform: (e) => [e.url ? platformOf(e.url) : "file"],
-};
-// Searchable terms of an image: its style tags, plus its project types, group name and platform,
-// so those can be searched and filtered on like tags. KIND remembers which non-tag kind a term is.
-const KIND = new Map();
-// "kr.pinterest.com", "uk.pinterest.com" -> "pinterest.com" (country subdomains are one platform)
-const platformOf = (url) => hostOf(url).replace(/^[a-z]{2}\./, "");
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-function termsOf(e) {
-  if (e._terms) return e._terms;
-  const terms = [...e.tags];
-  const add = (term, kind) => {
-    if (!term || terms.includes(term)) return;
-    terms.push(term);
-    if (!KIND.has(term)) KIND.set(term, kind);
-  };
-  for (const f of e.fields) add(FIELD_NAMES[f] ?? f, "Type");
-  add(e.group_name && cap(e.group_name), "Group");
-  if (e.url) add(platformOf(e.url), "Platform");
-  return (e._terms = terms);
-}
-// Searched terms act as filters: an image shows only if it has every one of them.
-const passes = (e, selected) => selected.every((t) => termsOf(e).includes(t));
-
-// ---------- Quadtree for the layout's repulsion (Barnes–Hut) ----------
-const THETA = 0.8; // larger = faster and rougher; 0.8 looks the same as the exact layout here
-function buildTree(nodes) {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const n of nodes) { if (n.x < x0) x0 = n.x; if (n.x > x1) x1 = n.x; if (n.y < y0) y0 = n.y; if (n.y > y1) y1 = n.y; }
-  const root = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, half: Math.max(x1 - x0, y1 - y0) / 2 + 1, m: 0, cx: 0, cy: 0, node: null, kids: null };
-  for (const n of nodes) insert(root, n, 0);
-  return root;
-}
-function insert(t, n, depth) {
-  t.cx = (t.cx * t.m + n.x) / (t.m + 1); t.cy = (t.cy * t.m + n.y) / (t.m + 1); t.m++;
-  if (t.m === 1) { t.node = n; return; }
-  if (depth > 24) return; // dots on the same spot: count them, don't split forever
-  if (!t.kids) {
-    const h = t.half / 2;
-    t.kids = [0, 1, 2, 3].map((q) => ({ x: t.x + (q & 1 ? h : -h), y: t.y + (q & 2 ? h : -h), half: h, m: 0, cx: 0, cy: 0, node: null, kids: null }));
-    if (t.node) { const o = t.node; t.node = null; insert(t.kids[(o.x > t.x) | ((o.y > t.y) << 1)], o, depth + 1); }
-  }
-  insert(t.kids[(n.x > t.x) | ((n.y > t.y) << 1)], n, depth + 1);
-}
-function repel(t, a, spread) {
-  if (!t.m || t.node === a) return;
-  const dx = a.x - t.cx, dy = a.y - t.cy;
-  const d2 = dx * dx + dy * dy || 0.01;
-  if (t.kids && (2 * t.half) * (2 * t.half) > THETA * THETA * d2) { for (const k of t.kids) repel(k, a, spread); return; }
-  const f = (spread * t.m) / d2;
-  a.vx += dx * f; a.vy += dy * f;
-}
+// The map state lives outside React (it changes every frame) and is kept while visiting other
+// pages, so coming back shows the same layout. Reset on reload.
+let kept = null;
+const freshState = () => ({
+  nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), etag: null,
+  cam: { x: 0, y: 0, k: 1 }, shownK: 1, heat: 0, mouse: null, hover: null, dragged: null, userCam: false, dirty: true,
+});
+const readJSON = (store, key) => { try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; } };
 
 export default function Graph() {
   const canvasRef = useRef(null);
-  const g = useRef(kept ?? { nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
-  const [stats, setStats] = useState({ links: 0, thumbs: 0 });
+  const g = useRef(kept ?? freshState());
+  const [count, setCount] = useState(0);         // references in the library
   const [online, setOnline] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
-  const [groupBy, setGroupBy] = useState("Color");
-  const [project, setProject] = useState(null); // { id, name, refs: [libraryId] }: show only this project's references
-  const projRef = useRef(null);
-  const groupRef = useRef(groupBy);
-  const autoTags = useRef(false); // Tags view was picked by a filter, not by the user
-  const [tags, setTags] = useState([]); // [[tag, count]] among shown images, for suggestions
+  const [showTuning, setShowTuning] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [view, setView] = useState({ by: "Color", sel: [], auto: false, proj: null }); // what is shown
+  const [terms, setTerms] = useState([]);        // [[term, count]] among shown images
+  const [hits, setHits] = useState(0);
   const [query, setQuery] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
-  const [active, setActive] = useState(0); // highlighted suggestion
-  const [selected, setSel] = useState([]);
-  const selRef = useRef(selected);
-  const [hits, setHits] = useState(0);
-  const [detail, setDetail] = useState(null); // clicked image, shown in the right half
-  const detailRef = useRef(null);
-  const [tuningOpen, setTuningOpen] = useState(true);
-  const tuningWas = useRef(true); // Display folds while an image is open, then comes back as it was
-  const tuningOpenRef = useRef(true);
-  tuningOpenRef.current = tuningOpen;
-  const tuneRef = useRef(tune);
-  tuneRef.current = tune;
-  g.current.dirty = true; // any re-render (sliders, filters, panels) redraws the map once
+  const [active, setActive] = useState(0);
+  const [detail, setDetail] = useState(null);    // clicked image, shown in the side panel
 
-  // Slider values are remembered per browser so tuning survives a reload.
-  useEffect(() => {
-    try { setTune({ ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") }); } catch {}
-    // Phones: Display starts folded so the graph stays visible.
-    if (window.matchMedia("(max-width: 640px)").matches) { setTuningOpen(false); tuningWas.current = false; }
-    // Filters come back after visiting another page (runs before the first library load).
-    let f = null;
-    try { f = JSON.parse(sessionStorage.getItem(FILTERS) ?? "null"); } catch {}
-    if (f && GROUP_BY[f.by] && Array.isArray(f.sel)) {
-      selRef.current = f.sel; setSel(f.sel); groupRef.current = f.by; setGroupBy(f.by); autoTags.current = !!f.auto;
-      projRef.current = f.proj ?? null; setProject(f.proj ?? null);
-      return;
-    }
-    // First open in this tab: start on the most recently used project's references (if it has any).
-    fetch("/api/projects").then((r) => r.json()).then((list) => {
-      const last = list.filter((p) => p.refs > 0).sort((a, b) => b.updated.localeCompare(a.updated))[0];
-      return last && fetch(`/api/projects/${last.id}`).then((r) => r.json());
-    }).then((p) => { if (p?.refs?.length && !projRef.current) pickProject({ id: p.id, name: p.name, refs: p.refs }); }).catch(() => {});
-  }, []);
-  function saveFilters() {
-    try { sessionStorage.setItem(FILTERS, JSON.stringify({ sel: selRef.current, by: groupRef.current, auto: autoTags.current, proj: projRef.current })); } catch {}
-  }
-  function pickProject(p) { projRef.current = p; setProject(p); saveFilters(); rebuild(); }
-  function setParam(key, value) {
-    const next = { ...tune, [key]: value };
-    setTune(next);
-    try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
-  }
+  // The canvas loop reads these without re-subscribing.
+  const viewRef = useRef(view); viewRef.current = view;
+  const tuneRef = useRef(tune); tuneRef.current = tune;
+  const detailRef = useRef(detail); detailRef.current = detail;
+  const panelWas = useRef(true); // the panel folds while an image is open, then comes back as it was
+  g.current.dirty = true; // any re-render (settings, filters, panels) redraws once
 
-  // The graph shows axia-prototype's library only. Polled, so new analysis results move in live.
-  useEffect(() => {
-    const s = g.current;
-    if (s.byId.size) { // back from another page: show the kept layout as it was, no reshuffle
-      const cam = s.userCam;
-      Object.assign(s, { mouse: null, hover: null, dragged: null });
-      rebuild(0);
-      s.userCam = cam;
-      s.shownK = s.cam.k; setZoom(s.cam.k);
-      setStats({ links: s.byId.size, thumbs: [...s.byId.values()].filter((n) => n.img).length });
-    }
-    const load = () => fetch("/api/library").then((r) => r.json()).then((d) => { setOnline(d.online); show(d.items); }).catch(() => {});
-    load();
-    const t = setInterval(load, 5000);
-    return () => { clearInterval(t); kept = s; };
-  }, []);
+  // ---------- what is shown ----------
+  const keysOf = (e, v = viewRef.current) => (v.by === "Tags" && v.sel.length ? v.sel : GROUP_BY[v.by](e));
 
-  // Add new library items; for known ones pick up new analysis results.
-  function show(items) {
-    const s = g.current;
-    let changed = false;
-    for (const e of items) {
-      const n = s.byId.get(e.id);
-      if (!n) {
-        const node = { id: e.id, hub: false, entry: e };
-        s.byId.set(e.id, node);
-        loadImage(node, e.image);
-        changed = true;
-      } else {
-        if (termsOf(n.entry).join() !== termsOf(e).join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
-        n.entry = e;
-        if (detailRef.current?.id === e.id) { detailRef.current = e; setDetail(e); } // keep the open panel current
-      }
-    }
-    if (changed) rebuild(0.3); // background updates nudge the layout, not reshuffle it
-    setStats((v) => ({ ...v, links: s.byId.size }));
-  }
-
-  // With tags searched, the Tags view shows only those tags' hubs.
-  function keysOf(e) {
-    const sel = selRef.current;
-    return groupRef.current === "Tags" && sel.length ? sel : GROUP_BY[groupRef.current](e);
-  }
-
-  function place(n, near) {
-    const p = near ?? { x: 0, y: 0 };
-    return Object.assign(n, { x: p.x + (Math.random() - 0.5) * 80, y: p.y + (Math.random() - 0.5) * 80, vx: 0, vy: 0 });
-  }
-
-  // Hubs are reused across rebuilds so they keep their place.
   function hubFor(key) {
     const s = g.current;
     if (!s.hubs.has(key)) {
-      const h = s.hubCache.get(key) ?? place({ id: key, hub: true });
-      h.kids = []; // its images; the first one with a loaded thumbnail stands for the hub
+      const h = s.hubCache.get(key) ?? place({ id: key, hub: true }); // hubs keep their place across rebuilds
+      h.kids = [];
       s.hubCache.set(key, h);
       s.hubs.set(key, h);
       s.nodes.push(h);
@@ -213,58 +87,175 @@ export default function Graph() {
     return s.hubs.get(key);
   }
 
-  // Recompute what is shown: filter by searched tags, then link each image to its hubs.
-  function rebuild(heat = 1) {
-    const s = g.current, sel = selRef.current;
-    const proj = projRef.current?.refs;
-    const items = [...s.byId.values()].filter((n) => passes(n.entry, sel) && (!proj || proj.includes(n.id)));
+  // Recompute the shown nodes and their links; `heat` lets the layout move again.
+  function rebuild(heat = 1, v = viewRef.current) {
+    const s = g.current;
+    const proj = v.proj?.refs;
+    const items = [...s.byId.values()].filter((n) => passes(n.entry, v.sel) && (!proj || proj.includes(n.id)));
     s.nodes = [...items];
     s.hubs.clear();
     for (const n of items) {
-      n.parents = keysOf(n.entry).map(hubFor);
+      n.parents = keysOf(n.entry, v).map(hubFor);
       for (const h of n.parents) h.kids.push(n);
       if (n.x == null) place(n, n.parents[0]);
     }
     s.userCam = false;
     s.dirty = true;
-    s.heat = Math.max(s.heat ?? 0, heat); // let the layout move again
-    const count = {}; // suggest tags of the shown images, so each pick narrows the result
-    for (const n of items) for (const t of termsOf(n.entry)) if (!sel.includes(t)) count[t] = (count[t] ?? 0) + 1;
-    setTags(Object.entries(count).sort((a, b) => b[1] - a[1]));
+    s.heat = Math.max(s.heat, heat);
+    setTerms(countTerms(items.map((n) => n.entry), v.sel)); // so each pick narrows the result
     setHits(items.length);
   }
-  function unpinAll() {
+
+  function changeView(patch) {
+    const v = { ...viewRef.current, ...patch };
+    viewRef.current = v;
+    setView(v);
+    try { sessionStorage.setItem(FILTERS, JSON.stringify(v)); } catch {}
+    rebuild(1, v);
+  }
+  // Filtering switches the Color view to Tags; clearing every filter switches back.
+  function setSelected(sel) {
+    const v = viewRef.current;
+    const by = sel.length && v.by === "Color" ? "Tags" : !sel.length && v.auto ? "Color" : v.by;
+    changeView({ sel, by, auto: by === v.by ? v.auto : by === "Tags" });
+  }
+  const addTerm = (t) => {
+    if (!t || viewRef.current.sel.includes(t)) return;
+    setSelected([...viewRef.current.sel, t]);
+    setQuery(""); setActive(0); setSuggestOpen(false);
+  };
+  const toggleTerm = (t) => (view.sel.includes(t) ? setSelected(view.sel.filter((x) => x !== t)) : addTerm(t));
+
+  // ---------- library ----------
+  // New entries get a node; known ones pick up new analysis results.
+  function merge(items) {
+    const s = g.current;
+    let changed = false;
+    for (const e of items) {
+      const n = s.byId.get(e.id);
+      if (!n) {
+        const node = { id: e.id, hub: false, entry: e };
+        s.byId.set(e.id, node);
+        loadThumb(node, [e.thumb, e.image], () => { s.dirty = true; });
+        changed = true;
+      } else {
+        if (n.entry.tags.join() !== e.tags.join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
+        n.entry = e;
+        if (detailRef.current?.id === e.id) setDetail(e); // keep the open panel current
+      }
+    }
+    if (changed) rebuild(0.3); // background updates nudge the layout, not reshuffle it
+    setCount(s.byId.size);
+  }
+
+  useEffect(() => {
+    const s = g.current;
+    // Settings are remembered per browser; filters per tab.
+    setTune({ ...DEFAULTS, ...readJSON(localStorage, STORE) });
+    setShowTuning(new URLSearchParams(location.search).has("tune"));
+    if (matchMedia("(max-width: 640px)").matches) { setPanelOpen(false); panelWas.current = false; } // phones: keep the map visible
+    const saved = readJSON(sessionStorage, FILTERS);
+    if (saved && GROUP_BY[saved.by] && Array.isArray(saved.sel)) { viewRef.current = saved; setView(saved); }
+    else openLastProject();
+
+    if (s.byId.size) { // back from another page: the kept layout as it was
+      const userCam = s.userCam;
+      Object.assign(s, { mouse: null, hover: null, dragged: null });
+      rebuild(0);
+      s.userCam = userCam;
+      setZoom(s.cam.k); setCount(s.byId.size);
+    }
+    const load = () => fetchLibrary(s.etag)
+      .then((d) => { if (!d) return; s.etag = d.etag; setOnline(d.online); merge(d.items); })
+      .catch(() => setOnline(false));
+    load();
+    const t = setInterval(load, POLL_MS);
+    return () => { clearInterval(t); kept = s; };
+  }, []);
+
+  // First open in this tab: start on the most recently used project's references.
+  function openLastProject() {
+    fetch("/api/projects").then((r) => r.json()).then((list) => {
+      const last = list.filter((p) => p.refs > 0).sort((a, b) => b.updated.localeCompare(a.updated))[0];
+      return last && fetch(`/api/projects/${last.id}`).then((r) => r.json());
+    }).then((p) => {
+      if (p?.refs?.length && !viewRef.current.proj) changeView({ proj: { id: p.id, name: p.name, refs: p.refs } });
+    }).catch(() => {});
+  }
+
+  function setParam(key, value) {
+    const next = { ...tune, [key]: value };
+    setTune(next);
+    try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
+  }
+  function resetLayout() {
+    setTune(DEFAULTS);
+    try { localStorage.removeItem(STORE); } catch {}
     const s = g.current;
     for (const n of [...s.byId.values(), ...s.hubCache.values()]) n.pinned = false;
     s.heat = 1;
   }
-  function regroup(by) { autoTags.current = false; groupRef.current = by; setGroupBy(by); saveFilters(); rebuild(); }
-  function setSelected(next) {
-    selRef.current = next; setSel(next);
-    // Filtering switches the default Color view to Tags; clearing all filters switches back.
-    const by = next.length && groupRef.current === "Color" ? "Tags" : !next.length && autoTags.current ? "Color" : null;
-    if (by) { autoTags.current = by === "Tags"; groupRef.current = by; setGroupBy(by); }
-    saveFilters();
-    rebuild();
-  }
 
-  // Suggestions while typing: tags containing the text, those starting with it first, then by use.
-  // `tags` only holds tags of the images still shown, so once filters are set these are the related
-  // tags (picking one always narrows the result, never empties it). Empty field: most used first.
-  const q = query.trim().toLowerCase();
-  const suggestions = (q
-    ? tags.filter(([t]) => t.toLowerCase().includes(q))
-        .sort((a, b) => b[0].toLowerCase().startsWith(q) - a[0].toLowerCase().startsWith(q) || b[1] - a[1])
-    : tags).slice(0, 8);
+  function openDetail(e) {
+    if (!detailRef.current) { panelWas.current = panelOpen; setPanelOpen(false); }
+    setDetail(e); g.current.userCam = false;
+  }
+  function closeDetail() {
+    if (detailRef.current) setPanelOpen(panelWas.current);
+    setDetail(null); g.current.userCam = false;
+  }
+  const openRef = useRef(openDetail); openRef.current = openDetail;
+  const closeRef = useRef(closeDetail); closeRef.current = closeDetail;
+
+  // ---------- canvas loop: layout, camera, draw only when something changed ----------
+  useEffect(() => {
+    const canvas = canvasRef.current, ctx = canvas.getContext("2d"), s = g.current;
+    const css = getComputedStyle(document.documentElement), colors = {};
+    const color = (v) => (colors[v] ??= css.getPropertyValue(v).trim());
+    const phone = () => canvas.clientWidth <= 640;
+    const hubR = (h) => (h.rep?.img ? tuneRef.current.dot * HUB_DOTS : 6);
+    const pos = (n) => toScreen(s.cam, canvas, n);
+    const hubAt = (m) => m && s.nodes.findLast((n) => n.hub && Math.hypot(pos(n).x - m.x, pos(n).y - m.y) <= Math.max(hubR(n), 10));
+    // Hub circles keep a screen-px gap; the zoom used is floored so it can't feed back into fitting
+    // (wider gap -> zoom out -> wider gap). Far out, many hubs may overlap a little.
+    const hubGap = (a, b) => (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, phone() ? 0.03 : 0.08);
+
+    let raf;
+    const frame = () => {
+      const start = performance.now(), settings = { spread: tuneRef.current.spread, hubGap };
+      let moving = step(s, settings);
+      while (moving && !s.dragged && performance.now() - start < LAYOUT_MS) step(s, settings);
+
+      let fitted = false;
+      if (!s.userCam && s.nodes.length) { // keep every dot in view until the user zooms or drags
+        const before = s.cam;
+        s.cam = fitStep(s.cam, canvas, s.nodes, {
+          pad: 120 + 2 * tuneRef.current.dot * HUB_DOTS,
+          side: phone() ? 0 : SIDE_W + 48, top: phone() ? 210 : 0, // where the panels cover the map
+        });
+        fitted = camMoved(before, s.cam);
+        if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
+      }
+      const resized = canvas.width !== canvas.clientWidth * (devicePixelRatio || 1);
+      if (moving || fitted || resized || s.dirty || s.animating) {
+        s.dirty = false;
+        const open = detailRef.current && s.byId.get(detailRef.current.id);
+        drawMap(ctx, { canvas, s, t: tuneRef.current, color, hubR, hubAt, pos, picked: open && s.nodes.includes(open) ? open : null });
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    frame();
+
+    const detach = attachInput(canvas, s, { hubAt, onOpen: (e) => openRef.current(e), onZoom: setZoom });
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
+    addEventListener("keydown", onKey);
+    return () => { cancelAnimationFrame(raf); detach(); removeEventListener("keydown", onKey); };
+  }, []);
+
+  // ---------- panels ----------
+  const suggestions = suggest(terms, query);
   const showSuggest = suggestOpen && suggestions.length > 0;
-
-  function addTag(t) {
-    if (!t || selRef.current.includes(t)) return;
-    setSelected([...selRef.current, t]);
-    setQuery("");
-    setActive(0);
-    setSuggestOpen(false); // don't cover the chips; typing, ↓ or a click reopens it
-  }
+  const q = query.trim().toLowerCase();
   function onSearchKey(e) {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -274,399 +265,10 @@ export default function Graph() {
     } else if (e.key === "Escape") {
       e.stopPropagation(); // close the list, not the detail panel
       setSuggestOpen(false);
-    } else if (e.key === "Backspace" && !query && selected.length) {
-      setSelected(selected.slice(0, -1)); // like a token field: backspace removes the last filter
+    } else if (e.key === "Backspace" && !query && view.sel.length) {
+      setSelected(view.sel.slice(0, -1)); // like a token field
     }
   }
-
-  function openDetail(e) {
-    if (!detailRef.current) { tuningWas.current = tuningOpenRef.current; setTuningOpen(false); }
-    detailRef.current = e; setDetail(e); g.current.userCam = false; g.current.dirty = true;
-  }
-  function closeDetail() {
-    if (detailRef.current) setTuningOpen(tuningWas.current);
-    detailRef.current = null; setDetail(null); g.current.userCam = false; g.current.dirty = true;
-  }
-
-  // Thumbnails load a few at a time, and only a small square copy is kept: drawing hundreds of
-  // full-size images every frame is what made the map heavy.
-  function loadImage(node, src) {
-    loadQueue.push({ node, src });
-    pumpImages();
-  }
-  function pumpImages() {
-    while (loading < LOAD_AT_ONCE && loadQueue.length) {
-      const { node, src } = loadQueue.shift();
-      loading++;
-      const img = new Image();
-      img.decoding = "async";
-      const done = (thumb) => {
-        loading--;
-        if (thumb) { node.img = thumb; g.current.dirty = true; setStats((v) => ({ ...v, thumbs: v.thumbs + 1 })); }
-        pumpImages();
-      };
-      img.onload = () => {
-        const w = img.naturalWidth, h = img.naturalHeight, side = Math.min(w, h);
-        const size = Math.min(THUMB, side);
-        createImageBitmap(img, (w - side) / 2, (h - side) / 2, side, side, { resizeWidth: size, resizeHeight: size, resizeQuality: "medium" })
-          .then(done, () => done(img)); // browsers without resize options: keep the image itself
-      };
-      img.onerror = () => done(null);
-      img.src = src;
-    }
-  }
-
-  // Simulation + drawing loop.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const s = g.current;
-    const css = getComputedStyle(document.documentElement);
-    const colors = {};
-    const color = (v) => (colors[v] ??= css.getPropertyValue(v).trim()); // read once, not every frame
-    let raf;
-
-    // Hubs show a representative thumbnail in a circle 4× the dot size (a small dot until one has loaded).
-    const hubImg = (h) => h.rep?.img;
-    // Pick each hub's thumbnail: its first loaded image that no other hub is already showing.
-    const pickReps = () => {
-      const used = new Set();
-      for (const h of s.nodes) {
-        if (!h.hub) continue;
-        h.rep = h.kids?.find((k) => k.img && !used.has(k)) ?? h.kids?.find((k) => k.img);
-        if (h.rep) used.add(h.rep);
-      }
-    };
-    const hubR = (h) => (hubImg(h) ? tuneRef.current.dot * HUB_DOTS : 6);
-    const hubAt = (m) => m && s.nodes.findLast((n) => {
-      if (!n.hub) return false;
-      const p = toScreen(n);
-      return Math.hypot(p.x - m.x, p.y - m.y) <= Math.max(hubR(n), 10);
-    });
-
-    const toScreen = (n) => ({
-      x: (n.x - s.cam.x) * s.cam.k + canvas.clientWidth / 2,
-      y: (n.y - s.cam.y) * s.cam.k + canvas.clientHeight / 2,
-    });
-
-    // The layout cools down and stops once settled; rebuild() heats it up again.
-    function step() {
-      if (!(s.heat > 0.02)) return false;
-      s.heat *= 0.985;
-      const { nodes } = s;
-      // Repulsion between all dots through a quadtree (Barnes–Hut): far-away groups push as one,
-      // so 1,000+ references cost about n·log n per frame instead of n² (the old loop was what made
-      // the full library stutter). Hubs, which are few, still push each other exactly.
-      const spread = tuneRef.current.spread;
-      // Every dot pushes every other, so the cloud grows with the library. Pull to the centre grows
-      // with it: without this, 1,000 references kept flying outwards and froze as a square.
-      const gravity = 0.002 * Math.max(1, nodes.length / 150);
-      const tree = buildTree(nodes);
-      const hubs = nodes.filter((n) => n.hub);
-      for (let i = 0; i < hubs.length; i++) {
-        const a = hubs[i];
-        for (let j = i + 1; j < hubs.length; j++) {
-          const b = hubs[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const d2 = dx * dx + dy * dy || 0.01;
-          const f = (6000 - spread) / d2; // the tree already gave every pair `spread`
-          a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
-          // keep hub thumbnails (screen size) from overlapping
-          // ponytail: gap is in screen px, capped at zoom 0.08 (0.03 on phones, which zoom further out)
-          // so it can't feed back into fit() (wider gap -> zoom out -> wider gap); many hubs may overlap
-          // a little when zoomed far out.
-          const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, canvas.clientWidth <= 640 ? 0.03 : 0.08), d = Math.sqrt(d2);
-          if (d < min) {
-            const push = ((min - d) / d) * 0.2;
-            a.vx += dx * push; a.vy += dy * push; b.vx -= dx * push; b.vy -= dy * push;
-          }
-        }
-      }
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        repel(tree, a, spread);
-        for (const p of a.parents ?? []) { // spring to each of its hubs, shared out
-          const dx = p.x - a.x, dy = p.y - a.y;
-          const d = Math.hypot(dx, dy) || 1, f = ((d - 50) * 0.02) / a.parents.length;
-          a.vx += (dx / d) * f; a.vy += (dy / d) * f;
-          p.vx -= (dx / d) * f * 0.1; p.vy -= (dy / d) * f * 0.1;
-        }
-        a.vx -= a.x * gravity; a.vy -= a.y * gravity; // pull to centre
-      }
-      for (const n of nodes) {
-        if (n === s.dragged || n.pinned) { n.vx = n.vy = 0; continue; } // held by the mouse, or dropped there
-        n.vx *= 0.8; n.vy *= 0.8;
-        n.x += Math.max(-20, Math.min(20, n.vx));
-        n.y += Math.max(-20, Math.min(20, n.vy));
-      }
-      return true;
-    }
-
-    // Until the user zooms or drags, keep easing the camera so every dot is in view.
-    function fit() {
-      if (s.userCam || !s.nodes.length) return false;
-      const xs = s.nodes.map((n) => n.x), ys = s.nodes.map((n) => n.y);
-      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-      const pad = 120 + 2 * tuneRef.current.dot * HUB_DOTS; // header, plus hub circles at the edges
-      // fit the graph into the area left of the right-hand panel (detail = half the screen);
-      // on phones the panels span the top instead, so fit below them
-      const phone = canvas.clientWidth <= 640;
-      const side = phone ? 0 : SIDE_W + 48; // the right-hand column of panels
-      const top = phone ? 210 : 0; // header + search + folded Display
-      const k = Math.min(8, Math.max(0.02, Math.min(
-        (canvas.clientWidth - side) / (maxX - minX + pad / s.cam.k),
-        (canvas.clientHeight - top) / (maxY - minY + pad / s.cam.k),
-      )));
-      const ease = (a, b) => a + (b - a) * 0.15;
-      const before = s.cam;
-      s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(s.cam.y, (minY + maxY) / 2 - top / 2 / k) };
-      const moved = Math.abs(s.cam.k - before.k) / k > 0.001 || Math.hypot(s.cam.x - before.x, s.cam.y - before.y) * k > 0.3;
-      if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
-      return moved;
-    }
-
-    function draw() {
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-
-      const pos = new Map(s.nodes.map((n) => [n, toScreen(n)]));
-      ctx.strokeStyle = color("--edge");
-      ctx.lineWidth = 1;
-      // All lines in one path, stroked once (one stroke per line was most of the drawing time).
-      const edges = (list) => {
-        ctx.beginPath();
-        for (const n of list) for (const p of n.parents ?? []) {
-          const a = pos.get(n), b = pos.get(p);
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        }
-        ctx.stroke();
-      };
-      edges(s.nodes);
-      ctx.strokeStyle = color("--black"); // white: lines of the hovered and the selected image
-      if (s.hover) edges([s.hover]);
-      const picked = detailRef.current && s.byId.get(detailRef.current.id);
-      if (picked && pos.has(picked)) edges([picked]);
-
-      // Find the hovered dot, then draw dots with a fisheye bump near the cursor.
-      const t = tuneRef.current, k = s.cam.k;
-      s.hover = null;
-      let best = 20;
-      const items = s.nodes.filter((n) => !n.hub);
-      const overHub = hubAt(s.mouse);
-      for (const n of items) {
-        if (!s.mouse || overHub) break;
-        const p = pos.get(n), d = Math.hypot(p.x - s.mouse.x, p.y - s.mouse.y);
-        if (d < best) { best = d; s.hover = n; }
-      }
-      const lensOf = (n) => {
-        if (!s.mouse) return 0;
-        const p = pos.get(n);
-        return Math.max(0, 1 - Math.hypot(p.x - s.mouse.x, p.y - s.mouse.y) / t.lens);
-      };
-      // A dot is the thumbnail: it grows (eased per node) and, once its radius passes
-      // showAt, the image fades in inside it. Small it is a circle; as it grows toward
-      // hover size the shape relaxes into a rounded square.
-      const open = picked && pos.has(picked) ? picked : null; // image shown in the detail panel
-      const ordered = [...items.filter((n) => n !== s.hover && n !== open), ...new Set([s.hover, open])].filter(Boolean); // hovered and open on top
-      const dotMax = t.dot * k * (1 + t.lensGain);
-      s.animating = false;
-      for (const n of ordered) {
-        const p = pos.get(n);
-        if (p.x < -dotMax || p.y < -dotMax || p.x > w + dotMax || p.y > h + dotMax) { n.r = null; continue; } // off screen
-        let target = t.dot * k * (1 + t.lensGain * lensOf(n));
-        if (n === s.hover && n.img) target = Math.max(target, t.hover);
-        if (!n.img) target = Math.min(target, dotMax);
-        n.r = n.r == null ? target : n.r + (target - n.r) * 0.25;
-        if (Math.abs(target - n.r) > 0.2) s.animating = true; // still growing or shrinking: keep drawing
-        const r = n.r;
-
-        // white near the cursor (and when hovered or open); elsewhere the same grey as the lines
-        ctx.fillStyle = color(lensOf(n) > 0 || n === s.hover || n === open ? "--black" : "--grey");
-        ctx.globalAlpha = n.img ? 1 : 0.25; // no thumbnail yet: faint dot
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-
-        const show = n.img ? Math.min(1, Math.max(0, (r - t.showAt) / 4)) : 0; // 4px fade-in
-        const square = show > 0 ? Math.min(1, Math.max(0, (r - t.showAt) / Math.max(1, t.hover - t.showAt))) : 0;
-        const corner = r + (Math.min(t.corner, r) - r) * square; // circle → rounded square
-        if (show > 0) {
-          const iw = n.img.naturalWidth || n.img.width, ih = n.img.naturalHeight || n.img.height, side = Math.min(iw, ih);
-          ctx.save();
-          ctx.globalAlpha = show;
-          ctx.beginPath(); ctx.roundRect(p.x - r, p.y - r, r * 2, r * 2, corner); ctx.clip();
-          ctx.drawImage(n.img, (iw - side) / 2, (ih - side) / 2, side, side, p.x - r, p.y - r, r * 2, r * 2);
-          ctx.restore();
-        }
-        if (n === open) { // border that follows the thumbnail's shape (circle → rounded square)
-          ctx.strokeStyle = color("--black"); ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.roundRect(p.x - r - 1, p.y - r - 1, r * 2 + 2, r * 2 + 2, corner + 1); ctx.stroke();
-          ctx.lineWidth = 1;
-        }
-      }
-
-      ctx.fillStyle = color("--black");
-      ctx.font = `500 12px ${color("--font-label")}`;
-      ctx.textAlign = "center";
-      pickReps();
-      const hubs = s.nodes.filter((n) => n.hub);
-      for (const n of hubs) {
-        const p = pos.get(n), img = hubImg(n), r = hubR(n);
-        if (img) {
-          const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, side = Math.min(iw, ih);
-          ctx.save();
-          ctx.shadowColor = "rgba(0, 0, 0, 0.18)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
-          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-          ctx.save();
-          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.clip();
-          ctx.drawImage(img, (iw - side) / 2, (ih - side) / 2, side, side, p.x - r, p.y - r, r * 2, r * 2);
-          ctx.restore();
-        } else {
-          ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-      // Labels last, with a white outline, so no thumbnail or line covers them.
-      ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.strokeStyle = color("--white");
-      for (const n of hubs) {
-        const p = pos.get(n), y = p.y - hubR(n) - 8;
-        ctx.strokeText(n.id, p.x, y); ctx.fillText(n.id, p.x, y);
-      }
-      ctx.lineWidth = 1;
-      if (s.hover?.entry.title) {
-        const p = pos.get(s.hover);
-        ctx.fillStyle = color("--black");
-        ctx.font = `500 13px ${color("--font")}`;
-        ctx.fillText(s.hover.entry.title.slice(0, 60), p.x, p.y + Math.max(t.hover, t.dot * k) + 20);
-      }
-      if (s.hover?.entry.tags?.length) {
-        const p = pos.get(s.hover);
-        ctx.font = `400 11px ${color("--font")}`;
-        ctx.fillText(s.hover.entry.tags.join(" · "), p.x, p.y + Math.max(t.hover, t.dot * k) + 38);
-      }
-      canvas.style.cursor = s.dragged ? "grabbing" : s.hover || hubAt(s.mouse) ? "pointer" : "grab";
-    }
-
-    // Draw only when something changed: once the layout has settled and nothing moves,
-    // the map costs nothing (it used to redraw every image 60 times a second forever).
-    const loop = () => {
-      // Several layout steps per frame (up to ~8 ms), so the map settles in a second or two.
-      const start = performance.now();
-      let moving = step();
-      while (moving && !s.dragged && performance.now() - start < 8) step();
-      const camMoved = fit();
-      const sized = canvas.width !== canvas.clientWidth * (window.devicePixelRatio || 1);
-      if (moving || camMoved || sized || s.dirty || s.animating) { s.dirty = false; draw(); }
-      raf = requestAnimationFrame(loop);
-    };
-    loop();
-
-    // Wheel zooms around the cursor, drag pans, click shows the image in the detail panel.
-    let drag = null;
-    const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    // Zoom to k, keeping the point under m where it is.
-    const zoomAt = (m, k) => {
-      s.userCam = true;
-      k = Math.min(8, Math.max(0.02, k));
-      const wx = (m.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x, wy = (m.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
-      s.cam = { k, x: wx - (m.x - canvas.clientWidth / 2) / k, y: wy - (m.y - canvas.clientHeight / 2) / k };
-      setZoom(k);
-      s.dirty = true;
-    };
-    const onWheel = (e) => { e.preventDefault(); zoomAt(local(e), s.cam.k * Math.exp(-e.deltaY * 0.002)); };
-    // Touch has no hover: find the dot under a tap directly.
-    const dotAt = (m) => {
-      let best = 24, hit = null;
-      for (const n of s.nodes) {
-        if (n.hub) continue;
-        const p = toScreen(n), d = Math.hypot(p.x - m.x, p.y - m.y);
-        if (d < best) { best = d; hit = n; }
-      }
-      return hit;
-    };
-    // Touch: one finger pans, two fingers pinch-zoom, a tap opens an image.
-    const fingers = new Map();
-    let pinch = null;
-    const spread = () => { const [a, b] = [...fingers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), m: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }; };
-    // Press on a dot or hub and move: drag it (its links pull neighbours along, like Obsidian);
-    // where you drop it, it stays (Reset in the Display panel unpins everything).
-    // Press on empty space and move: pan. Press and release without moving on a dot: open it.
-    const onDown = (e) => {
-      const m = local(e);
-      canvas.setPointerCapture(e.pointerId);
-      if (e.pointerType === "touch") {
-        fingers.set(e.pointerId, m);
-        if (fingers.size === 2) { const f = spread(); pinch = { d: f.d, k: s.cam.k }; drag = null; return; }
-        drag = { ...m, cam: { ...s.cam }, moved: false }; // one finger always pans: dots are too dense to grab by finger
-        return;
-      }
-      drag = { ...m, cam: { ...s.cam }, moved: false, node: s.hover ?? hubAt(m) };
-    };
-    const onMove = (e) => {
-      if (e.pointerType === "touch") {
-        if (!fingers.has(e.pointerId)) return;
-        const m = local(e);
-        fingers.set(e.pointerId, m);
-        if (pinch && fingers.size === 2) { const f = spread(); zoomAt(f.m, pinch.k * f.d / pinch.d); return; }
-        if (!drag) return;
-        const dx = m.x - drag.x, dy = m.y - drag.y;
-        if (Math.hypot(dx, dy) > 6) { drag.moved = true; s.userCam = true; } // a little wobble still counts as a tap
-        if (drag.moved) { s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k }; s.dirty = true; }
-        return;
-      }
-      s.mouse = local(e);
-      s.dirty = true;
-      if (!drag) return;
-      const dx = s.mouse.x - drag.x, dy = s.mouse.y - drag.y;
-      if (Math.hypot(dx, dy) > 3) { drag.moved = true; s.userCam = true; } // camera stays put while you work
-      if (!drag.moved) return;
-      if (drag.node) {
-        s.dragged = drag.node;
-        drag.node.pinned = true;
-        drag.node.x = (s.mouse.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x;
-        drag.node.y = (s.mouse.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
-        s.heat = Math.max(s.heat ?? 0, 0.6); // wake the layout so neighbours follow
-      } else {
-        s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
-      }
-    };
-    const onUp = (e) => {
-      if (e.pointerType === "touch") {
-        fingers.delete(e.pointerId);
-        if (pinch) { if (!fingers.size) pinch = null; drag = null; return; } // lifting after a pinch is not a tap
-        if (drag && !drag.moved) { const n = dotAt(local(e)); if (n) openDetail(n.entry); }
-        drag = null;
-        return;
-      }
-      if (drag && !drag.moved && drag.node && !drag.node.hub) openDetail(drag.node.entry);
-      drag = null;
-      s.dragged = null;
-    };
-    const onLeave = (e) => { if (e.pointerType === "touch") return; s.dirty = true; s.mouse = null; drag = null; s.dragged = null; };
-    const onCancel = (e) => { fingers.delete(e.pointerId); pinch = null; drag = null; s.dragged = null; };
-    const onKey = (e) => { if (e.key === "Escape") closeDetail(); };
-    window.addEventListener("keydown", onKey);
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointermove", onMove);
-    canvas.addEventListener("pointerup", onUp);
-    canvas.addEventListener("pointerleave", onLeave);
-    canvas.addEventListener("pointercancel", onCancel);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKey);
-      canvas.removeEventListener("wheel", onWheel);
-      canvas.removeEventListener("pointerdown", onDown);
-      canvas.removeEventListener("pointermove", onMove);
-      canvas.removeEventListener("pointerup", onUp);
-      canvas.removeEventListener("pointerleave", onLeave);
-      canvas.removeEventListener("pointercancel", onCancel);
-    };
-  }, []);
-
-  const empty = stats.links === 0;
 
   return (
     <div className="stage">
@@ -675,13 +277,13 @@ export default function Graph() {
         <div className="tag-search glass">
           <p className="tag-status">
             {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : selected.length || project ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} terms`}
+              : view.sel.length || view.proj ? `${hits} of ${count} references` : `${count} references · ${terms.length} terms`}
           </p>
-          <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTag(suggestions[active]?.[0]); }} role="search">
+          <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTerm(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
             </svg>
-            <input value={query} placeholder={selected.length ? "Add another filter" : "Search tags, types, groups, platforms"}
+            <input value={query} placeholder={view.sel.length ? "Add another filter" : "Search tags, types, groups, platforms"}
               aria-label="Search tags" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
               aria-controls="tag-suggest" aria-activedescendant={showSuggest ? `tag-suggest-${active}` : undefined}
               onChange={(e) => { setQuery(e.target.value); setActive(0); setSuggestOpen(true); }}
@@ -689,13 +291,12 @@ export default function Graph() {
               onBlur={() => setSuggestOpen(false)} onKeyDown={onSearchKey} />
             {showSuggest && (
               <ul id="tag-suggest" className="suggest" role="listbox" aria-label="Tag suggestions">
-                <li className="suggest-head" role="presentation">{q ? "Tags" : selected.length ? "Related tags" : "Popular tags"}</li>
+                <li className="suggest-head" role="presentation">{q ? "Tags" : view.sel.length ? "Related tags" : "Popular tags"}</li>
                 {suggestions.map(([t, n], i) => {
                   const at = q ? t.toLowerCase().indexOf(q) : -1;
                   return (
                     <li key={t} id={`tag-suggest-${i}`} role="option" aria-selected={i === active}
-                      onMouseEnter={() => setActive(i)}
-                      onMouseDown={(e) => { e.preventDefault(); addTag(t); }}>
+                      onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); addTerm(t); }}>
                       <span>{at < 0 ? t : <>{t.slice(0, at)}<mark>{t.slice(at, at + q.length)}</mark>{t.slice(at + q.length)}</>}</span>
                       <span className="suggest-count">{KIND.get(t) && <em>{KIND.get(t)} · </em>}{n}</span>
                     </li>
@@ -704,20 +305,21 @@ export default function Graph() {
               </ul>
             )}
           </form>
-          {(selected.length > 0 || project) && (
+          {(view.sel.length > 0 || view.proj) && (
             <div className="tag-chips">
-              {project && (
-                <button type="button" className="chip on" aria-label={`Show all references, not only ${project.name}`} title="Show all references"
-                  onClick={() => pickProject(null)}>Project: {project.name}<span className="chip-x" aria-hidden="true">×</span></button>
+              {view.proj && (
+                <button type="button" className="chip on" aria-label={`Show all references, not only ${view.proj.name}`} title="Show all references"
+                  onClick={() => changeView({ proj: null })}>Project: {view.proj.name}<span className="chip-x" aria-hidden="true">×</span></button>
               )}
-              {selected.map((t) => (
+              {view.sel.map((t) => (
                 <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
-                  onClick={() => setSelected(selected.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
+                  onClick={() => setSelected(view.sel.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
               ))}
-              {selected.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
+              {view.sel.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
             </div>
           )}
         </div>
+
         {detail && (
           <section className="detail glass" aria-label="Selected reference">
             <div className="detail-bar">
@@ -729,9 +331,9 @@ export default function Graph() {
             {!detail.tags.length && <p>Analysing… tags will appear here.</p>}
             <div className="detail-tags">
               {detail.tags.map((t) => (
-                <button key={t} type="button" className={selected.includes(t) ? "chip on" : "chip"}
-                  title={selected.includes(t) ? "Remove this tag filter" : "Filter the graph by this tag"}
-                  onClick={() => (selected.includes(t) ? setSelected(selected.filter((x) => x !== t)) : addTag(t))}>{t}</button>
+                <button key={t} type="button" className={view.sel.includes(t) ? "chip on" : "chip"}
+                  title={view.sel.includes(t) ? "Remove this tag filter" : "Filter the map by this tag"}
+                  onClick={() => toggleTerm(t)}>{t}</button>
               ))}
             </div>
             {detail.url && (
@@ -741,14 +343,15 @@ export default function Graph() {
             )}
           </section>
         )}
-        <details className="tuning glass" open={tuningOpen} onToggle={(e) => setTuningOpen(e.currentTarget.open)}>
+
+        <details className="tuning glass" open={panelOpen} onToggle={(e) => setPanelOpen(e.currentTarget.open)}>
           <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
-          <div className="segmented" role="group" aria-label="Group the graph by">
+          <div className="segmented" role="group" aria-label="Group the map by">
             {Object.keys(GROUP_BY).map((by) => (
-              <button key={by} type="button" aria-pressed={by === groupBy} onClick={() => regroup(by)}>{by}</button>
+              <button key={by} type="button" aria-pressed={by === view.by} onClick={() => changeView({ by, auto: false })}>{by}</button>
             ))}
           </div>
-          {TUNING.map((p) => (
+          {showTuning && TUNING.map((p) => (
             <label key={p.key}>
               <span>{p.label}</span>
               <output>{tune[p.key]}</output>
@@ -759,14 +362,11 @@ export default function Graph() {
           ))}
           <div className="tuning-actions">
             <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
-            <button type="button" className="btn" title="Reset the sliders and unpin dots you moved"
-              onClick={() => { setTune(DEFAULTS); try { localStorage.removeItem(STORE); } catch {} unpinAll(); }}>
-              Reset
-            </button>
+            <button type="button" className="btn" title="Unpin dots you moved and lay the map out again" onClick={resetLayout}>Reset</button>
           </div>
         </details>
       </div>
-      {empty && online && (
+      {count === 0 && online && (
         <div className="empty">
           <h1>Nothing here yet</h1>
           <p>Send references with the Chrome extension (“Send to AxiA”) or add links and files in Library. They show up here once analysed.</p>
