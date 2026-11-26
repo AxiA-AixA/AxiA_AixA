@@ -12,6 +12,7 @@ export async function GET() {
       shared: !!p.shared, items: p.shared?.items.length ?? 0,
       agreed: votes.filter((v) => v.vote === "agree").length,
       open: votes.filter((v) => v.vote && v.vote !== "agree").length,
+      answered: votes.filter((v) => v.vote).length,
       cover: p.refs.slice(0, 4),
     };
   }));

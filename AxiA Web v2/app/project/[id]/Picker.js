@@ -6,10 +6,11 @@ const PAGE = 120;
 
 // Pick references for a project from the whole library. Filter by tags (every chosen tag must
 // match), click a thumbnail to add or remove it. Changes save as you click.
-export default function Picker({ items, chosen, onToggle, onClose }) {
+export default function Picker({ items, chosen, projectRefs = [], onToggle, onClose }) {
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState([]);
   const [onlyChosen, setOnlyChosen] = useState(false);
+  const [sort, setSort] = useState(projectRefs.length ? "suggested" : "recent");
   const [shown, setShown] = useState(PAGE);
   const picked = new Set(chosen);
 
@@ -19,15 +20,24 @@ export default function Picker({ items, chosen, onToggle, onClose }) {
     return () => removeEventListener("keydown", esc);
   }, [onClose]);
 
+  // Suggested: images that share the most tags with what's already in the project come first.
+  const weight = useMemo(() => {
+    const w = new Map();
+    for (const r of projectRefs) for (const t of r.tags) w.set(t, (w.get(t) ?? 0) + 1);
+    return w;
+  }, [projectRefs]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((i) => {
+    const list = items.filter((i) => {
       if (onlyChosen && !picked.has(i.id)) return false;
       const terms = [...i.tags, ...i.colors, ...i.fields].map((t) => t.toLowerCase());
       if (!tags.every((t) => terms.includes(t.toLowerCase()))) return false;
       return !q || terms.some((t) => t.startsWith(q)) || (i.title ?? "").toLowerCase().includes(q);
     });
-  }, [items, query, tags, onlyChosen, chosen]);
+    if (sort !== "suggested") return list;
+    const score = (i) => i.tags.reduce((s, t) => s + (weight.get(t) ?? 0), 0);
+    return list.map((i) => [i, score(i)]).sort((a, b) => b[1] - a[1]).map(([i]) => i);
+  }, [items, query, tags, onlyChosen, chosen, sort, weight]);
 
   // Tags most common among what's shown, to narrow down with one click.
   const top = useMemo(() => {
@@ -36,18 +46,22 @@ export default function Picker({ items, chosen, onToggle, onClose }) {
     return [...c].sort((a, b) => b[1] - a[1]).slice(0, 14);
   }, [filtered, tags]);
 
-  useEffect(() => setShown(PAGE), [query, tags, onlyChosen]);
+  useEffect(() => setShown(PAGE), [query, tags, onlyChosen, sort]);
 
   return (
     <div className="picker-backdrop" role="dialog" aria-modal="true" aria-label="Add references" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="picker glass">
         <div className="picker-head">
-          <h2>Add references <span className="muted">{chosen.length} in project</span></h2>
+          <h2>Add from your library <span className="muted">{chosen.length} in project · click to add or remove</span></h2>
           <button className="btn primary" onClick={onClose}>Done</button>
         </div>
         <div className="picker-tools">
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tags or titles: matte, studio, 3d…" autoFocus />
-          <div className="segmented">
+          <div className="segmented" role="group" aria-label="Order">
+            <button aria-pressed={sort === "suggested"} onClick={() => setSort("suggested")} disabled={!projectRefs.length} title="Most tags in common with this project first">Suggested</button>
+            <button aria-pressed={sort === "recent"} onClick={() => setSort("recent")}>Recent</button>
+          </div>
+          <div className="segmented" role="group" aria-label="Show">
             <button aria-pressed={!onlyChosen} onClick={() => setOnlyChosen(false)}>All {items.length}</button>
             <button aria-pressed={onlyChosen} onClick={() => setOnlyChosen(true)}>In project {chosen.length}</button>
           </div>

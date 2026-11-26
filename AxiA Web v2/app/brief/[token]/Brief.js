@@ -52,6 +52,9 @@ export default function Brief({ token }) {
         <p className="eyebrow">Visual brief{b.client ? ` for ${b.client}` : ""}</p>
         <h1>{b.word ? <>What “{b.word}” means for {b.name}</> : <>The look of {b.name}</>}</h1>
         <p className="muted">Your designer read these points from the references they collected. Tell them, point by point, whether this is the look you mean. It takes about two minutes.</p>
+        <div className="brief-progress" role="progressbar" aria-valuemin={0} aria-valuemax={b.items.length} aria-valuenow={answered} aria-label="Answered">
+          <span style={{ width: `${(answered / b.items.length) * 100}%` }} />
+        </div>
       </header>
 
       <form onSubmit={send}>
@@ -92,7 +95,7 @@ export default function Brief({ token }) {
           <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="So your designer knows who answered" /></label>
           <button className="btn primary" disabled={state === "sending"}>{state === "sending" ? "Sending…" : "Send answers"}</button>
           <p className="muted" role="status">
-            {state === "sent" ? "Sent. Your designer can see your answers now. Change anything and send again if you need to."
+            {state === "sent" ? "Sent. Your designer turns your answers into the agreed brief for this project. Change anything and send again if you need to."
               : state === "error" ? "That didn’t go through. Check your connection and try again."
               : `${answered} of ${b.items.length} answered`}
           </p>

@@ -16,6 +16,12 @@ if curl -s -m 2 -o /dev/null "$URL"; then
   exit 0
 fi
 
-echo "Starting AxiA v2… (first start can take ~30s on Google Drive)"
 ( until curl -s -m 2 -o /dev/null "$URL"; do sleep 1; done; open -a "Google Chrome" "$URL" ) &
-exec npx next dev -p 3001
+# Fast mode: build once (and again only when the code changed), then serve the built site.
+# Pages then open instantly instead of compiling on first visit. To edit the code live, use `npm run dev`.
+if [ ! -f .next/BUILD_ID ] || [ -n "$(find app lib public package.json -newer .next/BUILD_ID 2>/dev/null | head -1)" ]; then
+  echo "Preparing AxiA v2… (first time takes about a minute)"
+  npx next build || { echo "Build failed. Send this window to the team."; exit 1; }
+fi
+echo "Starting AxiA v2…"
+exec npx next start -p 3001

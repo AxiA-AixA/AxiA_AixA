@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// Where a project stands, as the same four steps the project page shows, and the next one in words.
+function stage(p) {
+  if (p.refs < 5) return { step: 0, next: p.refs ? `Add ${5 - p.refs} more reference${5 - p.refs === 1 ? "" : "s"}` : "Add references" };
+  if (!p.shared) return { step: 1, next: "Review the spec and share it" };
+  if (p.answered < p.items) return { step: 2, next: p.answered ? `Client answered ${p.answered} of ${p.items}` : "Waiting for your client" };
+  return { step: 3, next: p.agreed === p.items ? "Agreed brief ready" : `${p.items - p.agreed} point${p.items - p.agreed === 1 ? "" : "s"} to discuss` };
+}
+
 // Home: the designer's projects. Each one turns its references into a visual spec for one client.
 export default function Projects() {
   const router = useRouter();
@@ -36,7 +44,7 @@ export default function Projects() {
     <section className="projects">
       <header className="page-head">
         <h1>Projects</h1>
-        <p>Each project turns its references into one visual spec. Share it with your client and agree on the look, point by point, before the first draft.</p>
+        <p>Each project turns your references into one visual spec. Share it with your client, agree on the look point by point, and keep the agreed brief before the first draft.</p>
       </header>
 
       {!lib.online && (
@@ -48,7 +56,7 @@ export default function Projects() {
         <div className="fields">
           <label>Project<input value={form.name} onChange={set("name")} placeholder="Spring campaign" autoFocus /></label>
           <label>Client<input value={form.client} onChange={set("client")} placeholder="Studio or brand name" /></label>
-          <label>The client’s word for the look<input value={form.word} onChange={set("word")} placeholder="minimal, premium, fresh…" /></label>
+          <label>Client’s words for the look<input value={form.word} onChange={set("word")} placeholder="e.g. minimal, premium" /></label>
         </div>
         <div className="row">
           <button className="btn primary" disabled={busy}>{busy ? "Creating…" : "Create project"}</button>
@@ -72,11 +80,15 @@ export default function Projects() {
                 <div className="card-text">
                   <h2>{p.name}</h2>
                   <p>{[p.client, p.word && `“${p.word}”`].filter(Boolean).join(" · ") || "No client yet"}</p>
-                  <p className="status">
-                    {p.refs} reference{p.refs === 1 ? "" : "s"} · {p.shared
-                      ? <>shared · <b>{p.agreed}/{p.items}</b> agreed{p.open ? ` · ${p.open} open` : ""}</>
-                      : "not shared yet"}
-                  </p>
+                  {(() => {
+                    const s = stage(p);
+                    return (
+                      <div className="card-stage">
+                        <span className="dots" aria-hidden="true">{[0, 1, 2, 3].map((i) => <i key={i} className={i < s.step ? "done" : i === s.step ? "now" : ""} />)}</span>
+                        <span><b>{s.next}</b> · {p.refs} reference{p.refs === 1 ? "" : "s"}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </Link>
             </li>
