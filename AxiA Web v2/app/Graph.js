@@ -20,6 +20,10 @@ const SIDE_W = 340;    // width of the right-hand panel column (matches .side in
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 const STORE = "axia-tuning";
 const FILTERS = "axia-filters"; // searched tags + view, kept for this browser tab
+const THUMB = 256;       // thumbnails are kept at this size (px, square): enough for the hover size on retina
+const LOAD_AT_ONCE = 6;  // images fetched at the same time
+const loadQueue = [];
+let loading = 0;
 let kept = null; // graph layout + camera, kept while visiting other pages (until a reload)
 
 // Project types (axia-prototype's "field" codes) as shown on the graph.
@@ -60,6 +64,35 @@ function termsOf(e) {
 // Searched terms act as filters: an image shows only if it has every one of them.
 const passes = (e, selected) => selected.every((t) => termsOf(e).includes(t));
 
+// ---------- Quadtree for the layout's repulsion (Barnes–Hut) ----------
+const THETA = 0.8; // larger = faster and rougher; 0.8 looks the same as the exact layout here
+function buildTree(nodes) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const n of nodes) { if (n.x < x0) x0 = n.x; if (n.x > x1) x1 = n.x; if (n.y < y0) y0 = n.y; if (n.y > y1) y1 = n.y; }
+  const root = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, half: Math.max(x1 - x0, y1 - y0) / 2 + 1, m: 0, cx: 0, cy: 0, node: null, kids: null };
+  for (const n of nodes) insert(root, n, 0);
+  return root;
+}
+function insert(t, n, depth) {
+  t.cx = (t.cx * t.m + n.x) / (t.m + 1); t.cy = (t.cy * t.m + n.y) / (t.m + 1); t.m++;
+  if (t.m === 1) { t.node = n; return; }
+  if (depth > 24) return; // dots on the same spot: count them, don't split forever
+  if (!t.kids) {
+    const h = t.half / 2;
+    t.kids = [0, 1, 2, 3].map((q) => ({ x: t.x + (q & 1 ? h : -h), y: t.y + (q & 2 ? h : -h), half: h, m: 0, cx: 0, cy: 0, node: null, kids: null }));
+    if (t.node) { const o = t.node; t.node = null; insert(t.kids[(o.x > t.x) | ((o.y > t.y) << 1)], o, depth + 1); }
+  }
+  insert(t.kids[(n.x > t.x) | ((n.y > t.y) << 1)], n, depth + 1);
+}
+function repel(t, a, spread) {
+  if (!t.m || t.node === a) return;
+  const dx = a.x - t.cx, dy = a.y - t.cy;
+  const d2 = dx * dx + dy * dy || 0.01;
+  if (t.kids && (2 * t.half) * (2 * t.half) > THETA * THETA * d2) { for (const k of t.kids) repel(k, a, spread); return; }
+  const f = (spread * t.m) / d2;
+  a.vx += dx * f; a.vy += dy * f;
+}
+
 export default function Graph() {
   const canvasRef = useRef(null);
   const g = useRef(kept ?? { nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), cam: { x: 0, y: 0, k: 1 }, shownK: 1, mouse: null, hover: null, userCam: false });
@@ -87,6 +120,7 @@ export default function Graph() {
   tuningOpenRef.current = tuningOpen;
   const tuneRef = useRef(tune);
   tuneRef.current = tune;
+  g.current.dirty = true; // any re-render (sliders, filters, panels) redraws the map once
 
   // Slider values are remembered per browser so tuning survives a reload.
   useEffect(() => {
@@ -192,6 +226,7 @@ export default function Graph() {
       if (n.x == null) place(n, n.parents[0]);
     }
     s.userCam = false;
+    s.dirty = true;
     s.heat = Math.max(s.heat ?? 0, heat); // let the layout move again
     const count = {}; // suggest tags of the shown images, so each pick narrows the result
     for (const n of items) for (const t of termsOf(n.entry)) if (!sel.includes(t)) count[t] = (count[t] ?? 0) + 1;
@@ -246,17 +281,39 @@ export default function Graph() {
 
   function openDetail(e) {
     if (!detailRef.current) { tuningWas.current = tuningOpenRef.current; setTuningOpen(false); }
-    detailRef.current = e; setDetail(e); g.current.userCam = false;
+    detailRef.current = e; setDetail(e); g.current.userCam = false; g.current.dirty = true;
   }
   function closeDetail() {
     if (detailRef.current) setTuningOpen(tuningWas.current);
-    detailRef.current = null; setDetail(null); g.current.userCam = false;
+    detailRef.current = null; setDetail(null); g.current.userCam = false; g.current.dirty = true;
   }
 
+  // Thumbnails load a few at a time, and only a small square copy is kept: drawing hundreds of
+  // full-size images every frame is what made the map heavy.
   function loadImage(node, src) {
-    const img = new Image();
-    img.onload = () => { node.img = img; setStats((v) => ({ ...v, thumbs: v.thumbs + 1 })); };
-    img.src = src;
+    loadQueue.push({ node, src });
+    pumpImages();
+  }
+  function pumpImages() {
+    while (loading < LOAD_AT_ONCE && loadQueue.length) {
+      const { node, src } = loadQueue.shift();
+      loading++;
+      const img = new Image();
+      img.decoding = "async";
+      const done = (thumb) => {
+        loading--;
+        if (thumb) { node.img = thumb; g.current.dirty = true; setStats((v) => ({ ...v, thumbs: v.thumbs + 1 })); }
+        pumpImages();
+      };
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight, side = Math.min(w, h);
+        const size = Math.min(THUMB, side);
+        createImageBitmap(img, (w - side) / 2, (h - side) / 2, side, side, { resizeWidth: size, resizeHeight: size, resizeQuality: "medium" })
+          .then(done, () => done(img)); // browsers without resize options: keep the image itself
+      };
+      img.onerror = () => done(null);
+      img.src = src;
+    }
   }
 
   // Simulation + drawing loop.
@@ -265,7 +322,8 @@ export default function Graph() {
     const ctx = canvas.getContext("2d");
     const s = g.current;
     const css = getComputedStyle(document.documentElement);
-    const color = (v) => css.getPropertyValue(v).trim();
+    const colors = {};
+    const color = (v) => (colors[v] ??= css.getPropertyValue(v).trim()); // read once, not every frame
     let raf;
 
     // Hubs show a representative thumbnail in a circle 4× the dot size (a small dot until one has loaded).
@@ -293,36 +351,47 @@ export default function Graph() {
 
     // The layout cools down and stops once settled; rebuild() heats it up again.
     function step() {
-      if (!(s.heat > 0.02)) return;
-      s.heat *= 0.99;
+      if (!(s.heat > 0.02)) return false;
+      s.heat *= 0.985;
       const { nodes } = s;
-      // ponytail: O(n²) repulsion, fine to ~1,000 dots; use a quadtree (Barnes–Hut) beyond that.
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
+      // Repulsion between all dots through a quadtree (Barnes–Hut): far-away groups push as one,
+      // so 1,000+ references cost about n·log n per frame instead of n² (the old loop was what made
+      // the full library stutter). Hubs, which are few, still push each other exactly.
+      const spread = tuneRef.current.spread;
+      // Every dot pushes every other, so the cloud grows with the library. Pull to the centre grows
+      // with it: without this, 1,000 references kept flying outwards and froze as a square.
+      const gravity = 0.002 * Math.max(1, nodes.length / 150);
+      const tree = buildTree(nodes);
+      const hubs = nodes.filter((n) => n.hub);
+      for (let i = 0; i < hubs.length; i++) {
+        const a = hubs[i];
+        for (let j = i + 1; j < hubs.length; j++) {
+          const b = hubs[j];
           const dx = a.x - b.x, dy = a.y - b.y;
           const d2 = dx * dx + dy * dy || 0.01;
-          const f = (a.hub && b.hub ? 6000 : tuneRef.current.spread) / d2;
+          const f = (6000 - spread) / d2; // the tree already gave every pair `spread`
           a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
-          if (a.hub && b.hub) { // keep hub thumbnails (screen size) from overlapping
-            // ponytail: gap is in screen px, capped at zoom 0.08 (0.03 on phones, which zoom further out)
-            // so it can't feed back into fit() (wider gap -> zoom out -> wider gap); many hubs may overlap
-            // a little when zoomed far out.
-            const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, canvas.clientWidth <= 640 ? 0.03 : 0.08), d = Math.sqrt(d2);
-            if (d < min) {
-              const push = ((min - d) / d) * 0.2;
-              a.vx += dx * push; a.vy += dy * push; b.vx -= dx * push; b.vy -= dy * push;
-            }
+          // keep hub thumbnails (screen size) from overlapping
+          // ponytail: gap is in screen px, capped at zoom 0.08 (0.03 on phones, which zoom further out)
+          // so it can't feed back into fit() (wider gap -> zoom out -> wider gap); many hubs may overlap
+          // a little when zoomed far out.
+          const min = (hubR(a) + hubR(b) + 36) / Math.max(s.cam.k, canvas.clientWidth <= 640 ? 0.03 : 0.08), d = Math.sqrt(d2);
+          if (d < min) {
+            const push = ((min - d) / d) * 0.2;
+            a.vx += dx * push; a.vy += dy * push; b.vx -= dx * push; b.vy -= dy * push;
           }
         }
+      }
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        repel(tree, a, spread);
         for (const p of a.parents ?? []) { // spring to each of its hubs, shared out
           const dx = p.x - a.x, dy = p.y - a.y;
           const d = Math.hypot(dx, dy) || 1, f = ((d - 50) * 0.02) / a.parents.length;
           a.vx += (dx / d) * f; a.vy += (dy / d) * f;
           p.vx -= (dx / d) * f * 0.1; p.vy -= (dy / d) * f * 0.1;
         }
-        a.vx -= a.x * 0.002; a.vy -= a.y * 0.002; // gravity to centre
+        a.vx -= a.x * gravity; a.vy -= a.y * gravity; // pull to centre
       }
       for (const n of nodes) {
         if (n === s.dragged || n.pinned) { n.vx = n.vy = 0; continue; } // held by the mouse, or dropped there
@@ -330,11 +399,12 @@ export default function Graph() {
         n.x += Math.max(-20, Math.min(20, n.vx));
         n.y += Math.max(-20, Math.min(20, n.vy));
       }
+      return true;
     }
 
     // Until the user zooms or drags, keep easing the camera so every dot is in view.
     function fit() {
-      if (s.userCam || !s.nodes.length) return;
+      if (s.userCam || !s.nodes.length) return false;
       const xs = s.nodes.map((n) => n.x), ys = s.nodes.map((n) => n.y);
       const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
       const pad = 120 + 2 * tuneRef.current.dot * HUB_DOTS; // header, plus hub circles at the edges
@@ -348,8 +418,11 @@ export default function Graph() {
         (canvas.clientHeight - top) / (maxY - minY + pad / s.cam.k),
       )));
       const ease = (a, b) => a + (b - a) * 0.15;
+      const before = s.cam;
       s.cam = { k: ease(s.cam.k, k), x: ease(s.cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(s.cam.y, (minY + maxY) / 2 - top / 2 / k) };
+      const moved = Math.abs(s.cam.k - before.k) / k > 0.001 || Math.hypot(s.cam.x - before.x, s.cam.y - before.y) * k > 0.3;
       if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
+      return moved;
     }
 
     function draw() {
@@ -362,17 +435,20 @@ export default function Graph() {
       const pos = new Map(s.nodes.map((n) => [n, toScreen(n)]));
       ctx.strokeStyle = color("--edge");
       ctx.lineWidth = 1;
-      const edges = (n) => {
-        for (const p of n.parents ?? []) {
+      // All lines in one path, stroked once (one stroke per line was most of the drawing time).
+      const edges = (list) => {
+        ctx.beginPath();
+        for (const n of list) for (const p of n.parents ?? []) {
           const a = pos.get(n), b = pos.get(p);
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
         }
+        ctx.stroke();
       };
-      for (const n of s.nodes) edges(n);
+      edges(s.nodes);
       ctx.strokeStyle = color("--black"); // white: lines of the hovered and the selected image
-      if (s.hover) edges(s.hover);
+      if (s.hover) edges([s.hover]);
       const picked = detailRef.current && s.byId.get(detailRef.current.id);
-      if (picked && pos.has(picked)) edges(picked);
+      if (picked && pos.has(picked)) edges([picked]);
 
       // Find the hovered dot, then draw dots with a fisheye bump near the cursor.
       const t = tuneRef.current, k = s.cam.k;
@@ -396,12 +472,15 @@ export default function Graph() {
       const open = picked && pos.has(picked) ? picked : null; // image shown in the detail panel
       const ordered = [...items.filter((n) => n !== s.hover && n !== open), ...new Set([s.hover, open])].filter(Boolean); // hovered and open on top
       const dotMax = t.dot * k * (1 + t.lensGain);
+      s.animating = false;
       for (const n of ordered) {
         const p = pos.get(n);
+        if (p.x < -dotMax || p.y < -dotMax || p.x > w + dotMax || p.y > h + dotMax) { n.r = null; continue; } // off screen
         let target = t.dot * k * (1 + t.lensGain * lensOf(n));
         if (n === s.hover && n.img) target = Math.max(target, t.hover);
         if (!n.img) target = Math.min(target, dotMax);
         n.r = n.r == null ? target : n.r + (target - n.r) * 0.25;
+        if (Math.abs(target - n.r) > 0.2) s.animating = true; // still growing or shrinking: keep drawing
         const r = n.r;
 
         // white near the cursor (and when hovered or open); elsewhere the same grey as the lines
@@ -414,7 +493,7 @@ export default function Graph() {
         const square = show > 0 ? Math.min(1, Math.max(0, (r - t.showAt) / Math.max(1, t.hover - t.showAt))) : 0;
         const corner = r + (Math.min(t.corner, r) - r) * square; // circle → rounded square
         if (show > 0) {
-          const iw = n.img.naturalWidth, ih = n.img.naturalHeight, side = Math.min(iw, ih);
+          const iw = n.img.naturalWidth || n.img.width, ih = n.img.naturalHeight || n.img.height, side = Math.min(iw, ih);
           ctx.save();
           ctx.globalAlpha = show;
           ctx.beginPath(); ctx.roundRect(p.x - r, p.y - r, r * 2, r * 2, corner); ctx.clip();
@@ -436,7 +515,7 @@ export default function Graph() {
       for (const n of hubs) {
         const p = pos.get(n), img = hubImg(n), r = hubR(n);
         if (img) {
-          const iw = img.naturalWidth, ih = img.naturalHeight, side = Math.min(iw, ih);
+          const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, side = Math.min(iw, ih);
           ctx.save();
           ctx.shadowColor = "rgba(0, 0, 0, 0.18)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
           ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
@@ -470,7 +549,18 @@ export default function Graph() {
       canvas.style.cursor = s.dragged ? "grabbing" : s.hover || hubAt(s.mouse) ? "pointer" : "grab";
     }
 
-    const loop = () => { step(); fit(); draw(); raf = requestAnimationFrame(loop); };
+    // Draw only when something changed: once the layout has settled and nothing moves,
+    // the map costs nothing (it used to redraw every image 60 times a second forever).
+    const loop = () => {
+      // Several layout steps per frame (up to ~8 ms), so the map settles in a second or two.
+      const start = performance.now();
+      let moving = step();
+      while (moving && !s.dragged && performance.now() - start < 8) step();
+      const camMoved = fit();
+      const sized = canvas.width !== canvas.clientWidth * (window.devicePixelRatio || 1);
+      if (moving || camMoved || sized || s.dirty || s.animating) { s.dirty = false; draw(); }
+      raf = requestAnimationFrame(loop);
+    };
     loop();
 
     // Wheel zooms around the cursor, drag pans, click shows the image in the detail panel.
@@ -483,6 +573,7 @@ export default function Graph() {
       const wx = (m.x - canvas.clientWidth / 2) / s.cam.k + s.cam.x, wy = (m.y - canvas.clientHeight / 2) / s.cam.k + s.cam.y;
       s.cam = { k, x: wx - (m.x - canvas.clientWidth / 2) / k, y: wy - (m.y - canvas.clientHeight / 2) / k };
       setZoom(k);
+      s.dirty = true;
     };
     const onWheel = (e) => { e.preventDefault(); zoomAt(local(e), s.cam.k * Math.exp(-e.deltaY * 0.002)); };
     // Touch has no hover: find the dot under a tap directly.
@@ -522,10 +613,11 @@ export default function Graph() {
         if (!drag) return;
         const dx = m.x - drag.x, dy = m.y - drag.y;
         if (Math.hypot(dx, dy) > 6) { drag.moved = true; s.userCam = true; } // a little wobble still counts as a tap
-        if (drag.moved) s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k };
+        if (drag.moved) { s.cam = { ...drag.cam, x: drag.cam.x - dx / s.cam.k, y: drag.cam.y - dy / s.cam.k }; s.dirty = true; }
         return;
       }
       s.mouse = local(e);
+      s.dirty = true;
       if (!drag) return;
       const dx = s.mouse.x - drag.x, dy = s.mouse.y - drag.y;
       if (Math.hypot(dx, dy) > 3) { drag.moved = true; s.userCam = true; } // camera stays put while you work
@@ -552,7 +644,7 @@ export default function Graph() {
       drag = null;
       s.dragged = null;
     };
-    const onLeave = (e) => { if (e.pointerType === "touch") return; s.mouse = null; drag = null; s.dragged = null; };
+    const onLeave = (e) => { if (e.pointerType === "touch") return; s.dirty = true; s.mouse = null; drag = null; s.dragged = null; };
     const onCancel = (e) => { fingers.delete(e.pointerId); pinch = null; drag = null; s.dragged = null; };
     const onKey = (e) => { if (e.key === "Escape") closeDetail(); };
     window.addEventListener("keydown", onKey);
