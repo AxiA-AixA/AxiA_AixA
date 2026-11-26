@@ -1,6 +1,7 @@
 import Nav from "./Nav";
 import "./globals.css";
 import "./brand.css";
+import "./flow.css";
 
 export const metadata = {
   title: "AxiA",

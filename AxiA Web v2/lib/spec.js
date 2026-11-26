@@ -107,3 +107,69 @@ export const VOTES = {
   unsure: { label: "Not sure", mark: "?" },
   disagree: { label: "Disagree", mark: "✕" },
 };
+
+// ---------- Reading the spec in plain words ----------
+
+// A point is "clear" when most references share it; below that it is supporting evidence only.
+export const CLEAR = 0.6;
+export const strength = (it) => (it.custom ? "clear" : it.share >= CLEAR ? "clear" : "some");
+
+// Words clients use for a look, and the fixed tags that usually show it. Used to check whether
+// the references actually look like what the client said. Grow this list from real briefs.
+export const WORD_HINTS = {
+  minimal: ["Minimal", "Whitespace", "Monochrome"], minimalist: ["Minimal", "Whitespace"], clean: ["Minimal", "Whitespace", "Grid", "Sans"],
+  simple: ["Minimal", "Whitespace"], modern: ["Sans", "Minimal", "Geometric"], bold: ["Vivid", "Display", "Dense"],
+  energetic: ["Energetic", "Vivid", "Kinetic", "Motion"], dynamic: ["Energetic", "Kinetic", "Motion", "Asymmetrical"],
+  romantic: ["Pastel", "Dreamlike", "Diffused", "Warm"], soft: ["Pastel", "Diffused", "Airy"], dreamy: ["Dreamlike", "Pastel", "Diffused"],
+  calm: ["Calm", "Muted", "Airy"], quiet: ["Calm", "Muted", "Whitespace"], playful: ["Playful", "Vivid", "Organic"],
+  fresh: ["Airy", "Vivid", "Natural", "Cool"], bright: ["Airy", "Vivid"], warm: ["Warm"], cool: ["Cool"], dark: ["Dark", "Shadowy"],
+  premium: ["Luxurious", "Studio", "Dark", "Metallic"], luxury: ["Luxurious", "Studio", "Metallic"], luxurious: ["Luxurious", "Metallic"],
+  elegant: ["Luxurious", "Serif", "Minimal"], futuristic: ["Futuristic", "Chrome", "Glass", "Metallic"], techy: ["Futuristic", "Chrome", "Glass"],
+  natural: ["Natural", "Organic", "Warm"], organic: ["Organic", "Natural"], retro: ["Retro", "Nostalgic", "Grain"], vintage: ["Retro", "Nostalgic", "Grain"],
+  editorial: ["Editorial", "Serif", "Grid"], industrial: ["Industrial", "Metallic", "Harsh"], surreal: ["Surreal", "Dreamlike"],
+  "미니멀": ["Minimal", "Whitespace"], "깔끔": ["Minimal", "Whitespace", "Grid"], "고급": ["Luxurious", "Studio", "Metallic"],
+  "럭셔리": ["Luxurious", "Metallic"], "따뜻": ["Warm"], "차분": ["Calm", "Muted"], "밝은": ["Airy", "Vivid"], "부드러운": ["Pastel", "Diffused"],
+  "몽환": ["Dreamlike", "Pastel"], "미래": ["Futuristic", "Chrome"], "자연": ["Natural", "Organic"], "레트로": ["Retro", "Nostalgic"],
+  "에너지": ["Energetic", "Vivid"], "역동": ["Energetic", "Kinetic"], "로맨틱": ["Pastel", "Dreamlike", "Diffused"],
+};
+
+// Split the client's word field ("energetic, romantic") into words.
+export const wordsOf = (word = "") => [...new Set(word.toLowerCase().split(/[,/&·+\s]+|\band\b/).map((w) => w.trim()).filter((w) => w && w !== "and"))];
+
+// For each word: does the reference set show it? -> [{ word, known, tags: [{ tag, share }], verdict }]
+// verdict: "shows" (a hinted tag in 30%+ of refs), "faint" (10–30%), "missing" (<10%), "unknown" (word not in the list).
+export function checkWords(word, refs) {
+  const n = refs.length || 1;
+  return wordsOf(word).map((w) => {
+    const key = Object.keys(WORD_HINTS).find((k) => w === k || w.startsWith(k) || k.startsWith(w));
+    if (!key) return { word: w, known: false, tags: [], verdict: "unknown" };
+    const tags = WORD_HINTS[key].map((tag) => ({ tag, share: refs.filter((r) => r.tags.includes(tag)).length / n }))
+      .sort((a, b) => b.share - a.share);
+    const top = tags[0]?.share ?? 0;
+    return { word: w, known: true, tags, verdict: top >= SHARE ? "shows" : top >= 0.1 ? "faint" : "missing" };
+  });
+}
+
+// One sentence that says what the look is, from the strongest kept points (one per category, up to 4).
+// "matte surfaces, soft diffused light, toned-down colour and generous empty space"
+const PHRASE = {
+  Minimal: "few, essential elements", Whitespace: "generous empty space", Dense: "dense, busy layouts", Centered: "centred subjects",
+  Grid: "a clear grid", Organic: "organic, flowing forms", Geometric: "geometric forms", Matte: "matte surfaces", Glossy: "glossy surfaces",
+  Metallic: "metallic surfaces", Glass: "glass and transparency", Translucent: "translucent materials", Diffused: "soft, diffused light",
+  Harsh: "hard light and crisp shadows", Studio: "clean studio light", Airy: "bright, airy tones", Shadowy: "deep shadows",
+  Muted: "toned-down colour", Vivid: "vivid colour", Pastel: "pastel colour", Monochrome: "a single-colour palette",
+  Grayscale: "black and white", Warm: "a warm palette", Cool: "a cool palette", Dark: "a dark palette", Sans: "sans-serif type",
+  Serif: "serif type", Typographic: "type as the hero", Calm: "a calm mood", Energetic: "an energetic mood", Playful: "a playful mood",
+  Luxurious: "a premium feel", Futuristic: "a futuristic feel", Dreamlike: "a dreamlike mood", Render: "3D renders", Product: "product focus",
+};
+export function summarise(items) {
+  const seen = new Set(), parts = [];
+  for (const it of [...items].filter((i) => !i.off && !i.custom && i.category !== "Palette").sort((a, b) => b.share - a.share)) {
+    if (seen.has(it.category)) continue;
+    seen.add(it.category);
+    parts.push(PHRASE[it.tag] ?? it.tag.toLowerCase());
+    if (parts.length === 4) break;
+  }
+  if (!parts.length) return "";
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
