@@ -30,8 +30,9 @@ const FIELD_NAMES = {
 const fieldNames = (e) => (e.fields.length ? e.fields.map((f) => FIELD_NAMES[f] ?? f) : [e.status === "tagged" ? "Other" : "Analysing"]);
 
 // What the hubs are. An image links to every hub it belongs to, so one that is e.g. both
-// Graphic and Package sits between those two. Type (default) = project types, Tags = style tags.
+// Graphic and Package sits between those two. Color (default) = main colours, Type = project types, Tags = style tags.
 const GROUP_BY = {
+  Color: (e) => (e.colors.length ? e.colors : ["No colour"]),
   Type: fieldNames,
   Tags: (e) => (e.tags.length ? e.tags : ["Untagged"]),
   Group: (e) => [e.group_name || "untagged"],
@@ -66,7 +67,9 @@ export default function Graph() {
   const [online, setOnline] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
-  const [groupBy, setGroupBy] = useState("Type");
+  const [groupBy, setGroupBy] = useState("Color");
+  const [project, setProject] = useState(null); // { id, name, refs: [libraryId] }: show only this project's references
+  const projRef = useRef(null);
   const groupRef = useRef(groupBy);
   const autoTags = useRef(false); // Tags view was picked by a filter, not by the user
   const [tags, setTags] = useState([]); // [[tag, count]] among shown images, for suggestions
@@ -91,16 +94,23 @@ export default function Graph() {
     // Phones: Display starts folded so the graph stays visible.
     if (window.matchMedia("(max-width: 640px)").matches) { setTuningOpen(false); tuningWas.current = false; }
     // Filters come back after visiting another page (runs before the first library load).
-    try {
-      const f = JSON.parse(sessionStorage.getItem(FILTERS) ?? "null");
-      if (f && GROUP_BY[f.by] && Array.isArray(f.sel)) {
-        selRef.current = f.sel; setSel(f.sel); groupRef.current = f.by; setGroupBy(f.by); autoTags.current = !!f.auto;
-      }
-    } catch {}
+    let f = null;
+    try { f = JSON.parse(sessionStorage.getItem(FILTERS) ?? "null"); } catch {}
+    if (f && GROUP_BY[f.by] && Array.isArray(f.sel)) {
+      selRef.current = f.sel; setSel(f.sel); groupRef.current = f.by; setGroupBy(f.by); autoTags.current = !!f.auto;
+      projRef.current = f.proj ?? null; setProject(f.proj ?? null);
+      return;
+    }
+    // First open in this tab: start on the most recently used project's references (if it has any).
+    fetch("/api/projects").then((r) => r.json()).then((list) => {
+      const last = list.filter((p) => p.refs > 0).sort((a, b) => b.updated.localeCompare(a.updated))[0];
+      return last && fetch(`/api/projects/${last.id}`).then((r) => r.json());
+    }).then((p) => { if (p?.refs?.length && !projRef.current) pickProject({ id: p.id, name: p.name, refs: p.refs }); }).catch(() => {});
   }, []);
   function saveFilters() {
-    try { sessionStorage.setItem(FILTERS, JSON.stringify({ sel: selRef.current, by: groupRef.current, auto: autoTags.current })); } catch {}
+    try { sessionStorage.setItem(FILTERS, JSON.stringify({ sel: selRef.current, by: groupRef.current, auto: autoTags.current, proj: projRef.current })); } catch {}
   }
+  function pickProject(p) { projRef.current = p; setProject(p); saveFilters(); rebuild(); }
   function setParam(key, value) {
     const next = { ...tune, [key]: value };
     setTune(next);
@@ -172,7 +182,8 @@ export default function Graph() {
   // Recompute what is shown: filter by searched tags, then link each image to its hubs.
   function rebuild(heat = 1) {
     const s = g.current, sel = selRef.current;
-    const items = [...s.byId.values()].filter((n) => passes(n.entry, sel));
+    const proj = projRef.current?.refs;
+    const items = [...s.byId.values()].filter((n) => passes(n.entry, sel) && (!proj || proj.includes(n.id)));
     s.nodes = [...items];
     s.hubs.clear();
     for (const n of items) {
@@ -195,8 +206,8 @@ export default function Graph() {
   function regroup(by) { autoTags.current = false; groupRef.current = by; setGroupBy(by); saveFilters(); rebuild(); }
   function setSelected(next) {
     selRef.current = next; setSel(next);
-    // Filtering switches the default Type view to Tags; clearing all filters switches back.
-    const by = next.length && groupRef.current === "Type" ? "Tags" : !next.length && autoTags.current ? "Type" : null;
+    // Filtering switches the default Color view to Tags; clearing all filters switches back.
+    const by = next.length && groupRef.current === "Color" ? "Tags" : !next.length && autoTags.current ? "Color" : null;
     if (by) { autoTags.current = by === "Tags"; groupRef.current = by; setGroupBy(by); }
     saveFilters();
     rebuild();
@@ -572,7 +583,7 @@ export default function Graph() {
         <div className="tag-search glass">
           <p className="tag-status">
             {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : selected.length ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} terms`}
+              : selected.length || project ? `${hits} of ${stats.links} references` : `${stats.links} references · ${tags.length} terms`}
           </p>
           <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTag(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -601,8 +612,12 @@ export default function Graph() {
               </ul>
             )}
           </form>
-          {selected.length > 0 && (
+          {(selected.length > 0 || project) && (
             <div className="tag-chips">
+              {project && (
+                <button type="button" className="chip on" aria-label={`Show all references, not only ${project.name}`} title="Show all references"
+                  onClick={() => pickProject(null)}>Project: {project.name}<span className="chip-x" aria-hidden="true">×</span></button>
+              )}
               {selected.map((t) => (
                 <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
                   onClick={() => setSelected(selected.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
@@ -662,8 +677,8 @@ export default function Graph() {
       {empty && online && (
         <div className="empty">
           <h1>Nothing here yet</h1>
-          <p>Send references with the Chrome extension (“Send to AxiA”) or add files in Reference. They show up here once analysed.</p>
-          <Link href="/reference" className="btn primary">Open Reference</Link>
+          <p>Send references with the Chrome extension (“Send to AxiA”) or add links and files in Library. They show up here once analysed.</p>
+          <Link href="/library" className="btn primary">Open Library</Link>
         </div>
       )}
     </div>
