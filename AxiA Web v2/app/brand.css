@@ -1,0 +1,4 @@
+/* Symbol + logotype (app/Brand.js) in the header and on the client's brief. */
+.nav-menu .logotype svg { display: block; width: auto; }
+.brief-head .lockup { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.brief-head .lockup svg { display: block; width: auto; margin: 0; }
