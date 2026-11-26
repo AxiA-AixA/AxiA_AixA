@@ -79,7 +79,7 @@ export default function Picker({ items, chosen, projectRefs = [], onToggle, onCl
           {filtered.slice(0, shown).map((i) => (
             <li key={i.id}>
               <button className={picked.has(i.id) ? "on" : ""} onClick={() => onToggle(i.id)} aria-pressed={picked.has(i.id)} title={i.tags.slice(0, 6).join(" · ")}>
-                <img src={i.image} alt={i.title || ""} loading="lazy" />
+                <img src={i.thumb} alt={i.title || ""} loading="lazy" />
                 {picked.has(i.id) && <span className="check" aria-hidden="true">✓</span>}
               </button>
             </li>

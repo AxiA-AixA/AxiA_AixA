@@ -75,7 +75,7 @@ export default function Brief({ token }) {
                 </div>
                 {it.examples.length > 0 && (
                   <div className="brief-thumbs">
-                    {it.examples.map((f) => <img key={f} src={imgUrl(f)} alt="" loading="lazy" />)}
+                    {it.examples.map((f) => <img key={f} src={imgUrl(f, { thumb: true })} alt="" loading="lazy" />)}
                   </div>
                 )}
                 <div className="votes segmented" role="group" aria-label={`Your answer for ${it.tag}`}>
