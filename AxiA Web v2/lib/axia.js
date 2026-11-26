@@ -41,7 +41,7 @@ export async function addFile(bytes, name = "") {
 export async function addLink(url) {
   const before = new Set((await readLibrary()).items.map((i) => i.id));
   const res = await fetch(`${AXIA}/api/add_link`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(30000),
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(180000), // an Are.na channel brings in every block
   });
   const d = await res.json();
   if (!res.ok) throw new Error(d.error ?? "That link didn't give an image.");

@@ -9,6 +9,7 @@ Axia 시제품 (내 컴퓨터에서 돌아가는 레퍼런스 보관함)
 실행: python3 app.py  (Windows: python app.py) → http://localhost:8770
 """
 import argparse, base64, hashlib, html, json, mimetypes, queue, re, threading, time, urllib.parse, urllib.request, webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -276,6 +277,9 @@ def add_from_link(url):
         if found:
             return found
         raise ValueError("This board can't be read from the link alone. Open the board and use the extension's 'Send this whole board'.")
+    found = add_arena_channel(final)
+    if found:
+        return found
     img = meta(page, "og:image") or meta(page, "twitter:image")
     if not img:
         raise ValueError("No preview image found on this page (it may need a login)")
@@ -307,6 +311,41 @@ def add_pinterest_board_rss(board_url):
             except Exception:
                 pass
     return out
+
+
+def add_arena_channel(url):
+    """Are.na 채널(are.na/사용자/채널)은 공개 API로 모든 블록 이미지를 가져와요. 채널이 아니거나 비공개면 빈 목록."""
+    m = re.search(r"are\.na/(?!block/)[^/]+/([^/?#]+)", url)
+    if not m:
+        return []
+    blocks = []
+    for page in range(1, 11):  # ponytail: 100개씩 최대 1,000블록까지만
+        req = urllib.request.Request(f"https://api.are.na/v2/channels/{m.group(1)}?per=100&page={page}",
+                                     headers={"user-agent": "AxiA/1.0"})  # the API refuses browser-like user agents
+        for attempt in range(3):  # the API fails now and then: try again
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    d = json.loads(r.read())
+                break
+            except Exception as e:
+                err = e
+                time.sleep(2)
+        else:
+            print("Are.na page", page, "failed:", err)
+            break
+        blocks += d.get("contents") or []
+        if not d.get("contents") or len(blocks) >= d.get("length", 0):
+            break
+    jobs = [((b.get("image") or {}).get("display", {}).get("url"), f"https://www.are.na/block/{b['id']}", b.get("title") or b.get("generated_title") or "")
+            for b in blocks if b.get("class") != "Channel"]
+
+    def one(job):
+        try:
+            return add_from_url(job[0], page_url=job[1], title=job[2], source="arena")
+        except Exception:
+            return None
+    with ThreadPoolExecutor(8) as pool:  # 이미지 여러 장을 동시에 받아요
+        return [r for r in pool.map(one, [j for j in jobs if j[0]]) if r]
 
 
 # ---------- tagging worker ----------
