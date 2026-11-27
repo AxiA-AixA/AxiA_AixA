@@ -2,7 +2,7 @@
 rem Double-click in Explorer: starts the AxiA v2 test server and opens it in Chrome.
 rem Close this window (or press Ctrl+C) to stop the server.
 cd /d "%~dp0"
-set URL=http://localhost:3001
+set URL=http://localhost:3001/map
 set OPEN=try { Start-Process chrome '%URL%' } catch { Start-Process '%URL%' }
 
 where node > nul 2> nul

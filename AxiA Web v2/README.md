@@ -7,7 +7,7 @@
 ## 켜기
 
 1. AI 분석기를 먼저 켜요. `axia-prototype` 폴더의 `Axia-실행-Mac.command`(Windows는 `.bat`)를 실행하세요. 아래 2번 런처를 쓰면 자동으로 켜져요.
-2. `AxiA_v2_open.command`(Windows는 `AxiA_v2_open.bat`)를 더블클릭하면 http://localhost:3001 이 열려요.
+2. `AxiA_v2_open.command`(Windows는 `AxiA_v2_open.bat`)를 더블클릭하면 http://localhost:3001/map (맵) 이 열려요.
    - ZIP으로 받은 경우 Mac에서는 처음 한 번 터미널에서 `chmod +x AxiA_v2_open.command ../axia-prototype/*.command`를 실행해야 더블클릭으로 열려요.
    - 런처는 처음에 한 번 빌드(약 1분)한 뒤 빠른 모드로 켜요. 코드를 바꾸면 Mac 런처는 알아서 다시 빌드하고, Windows는 `.next` 폴더를 지우면 다시 빌드해요.
    - 코드를 고치면서 바로 보려면 터미널에서 `npm install` 후 `npm run dev`를 쓰세요.
@@ -15,15 +15,17 @@
 
 ## 화면
 
+화면 구조는 Figma 파일 화면처럼 왼쪽 사이드바(로고, 검색 ⌘K, Map · Projects · Library, 최근 프로젝트, 아래에 Feedback · About · 분석기 설정)와 오른쪽 페이지로 되어 있어요. 페이지마다 위에 제목과 주요 버튼(예: New project)이 있어요.
+
 | 주소 | 내용 |
 |---|---|
 | `/` Projects | 프로젝트 목록과 새 프로젝트(이름 · 클라이언트 · 클라이언트가 쓴 단어, 예: "minimal") |
 | `/project/<id>` | 위: 4단계 진행 표시(References → Spec → Client → Agreed brief)와 지금 할 일 버튼 하나<br>왼쪽: 레퍼런스. 링크 붙여넣기, 이미지 업로드·끌어다 놓기, ⌘V 스크린샷, 보관함에서 고르기(Suggested 정렬). 새 이미지는 "Analysing…"으로 보이고, 분석 실패는 눌러서 다시 시도. 지운 건 Undo<br>오른쪽: 비주얼 스펙. 한 문장 요약, 만든 방법(몇 장·몇 개 태그), 클라이언트 단어 확인(레퍼런스에 실제로 보이는지), Clear(60%+)와 나머지(30–59%, 접힘), 필요할 때만 여는 메모<br>아래: Client 단계(링크, 응답 막대) |
 | `/project/<id>/agreed` | 합의된 브리프 1장: 합의한 항목, 팔레트, 대표 레퍼런스, 논의할 항목, 응답자·날짜. 인쇄/PDF 저장, 텍스트 복사 |
 | `/brief/<token>` | 클라이언트 화면. 가입 없이 항목마다 ✓ 동의 / ? 모르겠다 / ✕ 반대를 고르고 코멘트를 남겨요. 앱 메뉴는 숨겨져 있어요 |
-| `/map` | 레퍼런스 맵 (로고를 누르면 열려요). 색·분야·태그·그룹·플랫폼으로 묶고 검색으로 걸러요. **Map / Grid** 버튼으로 걸러진 이미지를 그리드로 볼 수 있어요<br>첫 화면: `AxiA symbol` 태그가 붙은 이미지(심볼 레퍼런스)만, 그 이미지들의 태그만 보여요. 칩의 ×를 누르면 전체 라이브러리 |
+| `/map` | 레퍼런스 맵 (런처가 처음 여는 화면). 가운데 AxiA 심볼, 주위에 심볼과 닮은 레퍼런스 5장만 보여요: Library에서 `AxiA symbol` 태그를 붙인 이미지, 없으면 크롬·메탈·모노 느낌의 심볼 이미지를 자동으로 골라요. 나머지 라이브러리는 이번 버전 맵에는 안 나와요. **Map / Grid** 버튼으로 그리드로도 볼 수 있어요 |
 | `/library` | 라이브러리: 링크·파일·⌘V로 추가, 검색, **이미지마다 내 태그 추가·삭제**, 여러 장 골라 한 번에 태그 달기, "Show on map's first screen"(= `AxiA symbol` 태그). 분석기 화면(API 키, 재분석)은 "Analyser settings ↗" |
-| `/feedback` | 테스트 참가자(디자이너) 피드백. 클라이언트는 브리프에 답한 뒤 같은 자리에서 두 문항에 답해요 |
+| `/feedback` | 피드백. 앱에서는 왼쪽 사이드바 아래 **Feedback** 버튼으로 어디서든 열려요(메뉴 탭 아님). `/feedback` 주소는 테스트 참가자에게 링크로 보낼 때 써요. 클라이언트는 브리프에 답한 뒤 두 문항에 답해요 |
 | `/feedback/summary` | 피드백 정리: 평균, 전체 응답, "Copy for Google Sheets"(axia-tech-validation의 "피드백 디자이너"·"피드백 클라이언트" 탭에 붙여넣기, "피드백 요약" 탭이 자동 계산), CSV |
 | `/how` | v2 파이프라인(Capture → Tag → Spec → Agree)과 검증 테스트 목록 |
 
@@ -46,6 +48,7 @@
 | `lib/adding.js` | 링크·파일·이미지 주소로 레퍼런스 추가 (라이브러리·프로젝트 공통) |
 | `lib/words.js` | 프로젝트 단어를 AI에게 확인 요청 |
 | `lib/feedback.js` | 피드백 저장 |
+| `app/shell/` | 앱 틀: 사이드바(`Shell.js`), 페이지 제목 줄(`PageHeader.js`), 피드백 창(`FeedbackSheet.js`), 아이콘 |
 | `app/shared/` | 여러 화면이 같이 쓰는 것: 레퍼런스 그리드(`RefGrid`), 추가(`useAddReferences`), 태그(`tags.js`), 별점(`Rating`) |
 | `lib/projects.js` | `data/projects.json` 저장 (임시 파일에 쓴 뒤 교체, 깨진 파일은 덮어쓰지 않음) |
 | `lib/client/library.js` | 브라우저에서 라이브러리 읽기 (바뀐 게 없으면 304로 본문 없이 응답) |

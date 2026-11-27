@@ -3,7 +3,7 @@
 # Close this Terminal window (or press Ctrl+C) to stop the server.
 cd "$(dirname "$0")"
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-URL="http://localhost:3001"
+URL="http://localhost:3001/map" # opens on the map (the AxiA symbol)
 SRC="$PWD"
 # Google Drive sometimes stalls Node's file reads forever, so the server runs from a local copy.
 # The code is mirrored there on every start; data/ stays here on Drive (linked).
