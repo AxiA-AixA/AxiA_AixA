@@ -1,4 +1,5 @@
 import { deleteProject, getProject, updateProject } from "@/lib/projects";
+import { checkProjectWords } from "@/lib/words";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export async function GET(_req, { params }) {
 export async function PUT(request, { params }) {
   const patch = await request.json().catch(() => ({}));
   const p = updateProject((await params).id, patch);
+  if (p && ("word" in patch || "refs" in patch)) checkProjectWords(p);
   return p ? Response.json(p) : Response.json({ error: "not found" }, { status: 404 });
 }
 

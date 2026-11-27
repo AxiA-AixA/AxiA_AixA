@@ -12,8 +12,9 @@ export async function POST(_req, { params }) {
   if (!p) return Response.json({ error: "not found" }, { status: 404 });
   const lib = await readLibrary();
   if (!lib.online) return Response.json({ error: "The AI analyser (axia-prototype) is off. Start it and try again." }, { status: 503 });
-  const refs = lib.items.filter((i) => p.refs.includes(i.id));
-  const items = buildSpec(refs, p.edits, p.custom).filter((i) => !i.off);
+  // Same as the project page: the spec reads analysed references only.
+  const refs = lib.items.filter((i) => p.refs.includes(i.id) && i.status === "tagged");
+  const items = buildSpec(refs, p.edits, p.custom, p.word).filter((i) => !i.off);
   if (!items.length) return Response.json({ error: "The spec is empty. Add references or points first." }, { status: 400 });
   return Response.json(shareProject(id, items));
 }

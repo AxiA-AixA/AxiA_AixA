@@ -15,6 +15,10 @@ export const CATEGORIES = [
   ["Mood", "Calm Energetic Playful Futuristic Retro Nostalgic Luxurious Industrial Natural Clinical"],
 ].map(([name, tags]) => [name, tags.split(" ")]);
 
+const FIXED = new Set(CATEGORIES.flatMap(([, tags]) => tags.map((t) => t.toLowerCase())));
+export const isFixedTag = (w) => FIXED.has(String(w).toLowerCase());
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+
 const CATEGORY_OF = new Map(CATEGORIES.flatMap(([name, tags]) => tags.map((t) => [t.toLowerCase(), name])));
 export const categoryOf = (tag) => CATEGORY_OF.get(tag.toLowerCase()) ?? "Other";
 
@@ -56,9 +60,11 @@ const MIN_COUNT = 2;
 const PER_CATEGORY = 3;
 
 // refs: library entries in the project. edits: { [tag]: { off, note } } from the designer.
-// custom: [{ key, text }] points the designer added by hand.
+// custom: [{ key, text }] points the designer added by hand. word: the client's words for the look;
+// those that aren't fixed tags were checked by the AI on each reference (entry.words) and become
+// points like tags do, under "Client's words".
 // Returns [{ key, tag, category, count, share, examples: [file], meaning, note, off, custom }].
-export function buildSpec(refs, edits = {}, custom = []) {
+export function buildSpec(refs, edits = {}, custom = [], word = "") {
   const n = refs.length;
   const counts = new Map();
   for (const r of refs) {
@@ -82,8 +88,13 @@ export function buildSpec(refs, edits = {}, custom = []) {
     const list = (byCat.get(category) ?? []).sort((a, b) => b.count - a.count).slice(0, PER_CATEGORY);
     items.push(...list);
   }
+  for (const w of clientWords(word)) {
+    const yes = refs.filter((r) => r.words?.[w] === true);
+    if (yes.length < Math.min(MIN_COUNT, n) || yes.length / n < SHARE) continue;
+    items.push({ key: `word:${w}`, tag: cap(w), category: WORDS_CATEGORY, count: yes.length, share: yes.length / n, examples: yes.slice(0, 4).map((r) => r.file), word: true });
+  }
   for (const it of items) {
-    it.meaning = MEANING[it.tag] ?? "";
+    it.meaning = it.word ? "your client's word, checked by AI on each reference" : MEANING[it.tag] ?? "";
     it.note = edits[it.key]?.note ?? "";
     // Supporting points (seen in under 60% of references) start switched off, so only what most
     // references share goes to the client unless the designer turns more on.
@@ -135,20 +146,41 @@ export const WORD_HINTS = {
   "에너지": ["Energetic", "Vivid"], "역동": ["Energetic", "Kinetic"], "로맨틱": ["Pastel", "Dreamlike", "Diffused"],
 };
 
+// The client's words that aren't in the fixed tag list. The AI checks each of these on every
+// reference of the project (see askWords in lib/axia.js), so they can become spec points too.
+export const WORDS_CATEGORY = "Client's words";
+export const clientWords = (word = "") => wordsOf(word).filter((w) => !isFixedTag(w));
+
 // Split the client's word field ("energetic, romantic") into words.
 export const wordsOf = (word = "") => [...new Set(word.toLowerCase().split(/[,/&·+\s]+|\band\b/).map((w) => w.trim()).filter((w) => w && w !== "and"))];
 
-// For each word: does the reference set show it? -> [{ word, known, tags: [{ tag, share }], verdict }]
-// verdict: "shows" (a hinted tag in 30%+ of refs), "faint" (10–30%), "missing" (<10%), "unknown" (word not in the list).
+// For each word: does the reference set show it? -> [{ word, verdict, ai?, share?, tags: [{ tag, share }], error? }]
+// verdict: "shows" (in 30%+ of refs), "faint" (10–30%), "missing" (<10%),
+//          "checking" (the AI hasn't answered yet), "unchecked" (the AI couldn't), "unknown" (no way to tell).
+// A word that is a fixed tag is counted directly; any other word uses the AI's answers when there are
+// any, else the list of words that usually show as certain tags.
+const verdictOf = (share) => (share >= SHARE ? "shows" : share >= 0.1 ? "faint" : "missing");
 export function checkWords(word, refs) {
   const n = refs.length || 1;
   return wordsOf(word).map((w) => {
+    if (isFixedTag(w)) {
+      const share = refs.filter((r) => r.tags.some((t) => t.toLowerCase() === w)).length / n;
+      return { word: w, known: true, tags: [{ tag: cap(w), share }], share, verdict: verdictOf(share) };
+    }
+    if (refs.some((r) => r.words && w in r.words)) {
+      const share = refs.filter((r) => r.words?.[w] === true).length / n;
+      const checked = refs.filter((r) => r.words && w in r.words).length;
+      const done = checked === refs.length || refs.some((r) => r.wordsError);
+      return { word: w, known: true, ai: true, tags: [], share, checked, total: refs.length, verdict: done ? verdictOf(share) : "checking" };
+    }
+    // No AI answer yet: the tags that usually show this word, while the AI checks (or if it can't).
+    const error = refs.find((r) => r.wordsError)?.wordsError;
+    const checking = refs.length > 0 && !error;
     const key = Object.keys(WORD_HINTS).find((k) => w === k || w.startsWith(k) || k.startsWith(w));
-    if (!key) return { word: w, known: false, tags: [], verdict: "unknown" };
+    if (!key) return { word: w, known: false, tags: [], verdict: checking ? "checking" : error ? "unchecked" : "unknown", error };
     const tags = WORD_HINTS[key].map((tag) => ({ tag, share: refs.filter((r) => r.tags.includes(tag)).length / n }))
       .sort((a, b) => b.share - a.share);
-    const top = tags[0]?.share ?? 0;
-    return { word: w, known: true, tags, verdict: top >= SHARE ? "shows" : top >= 0.1 ? "faint" : "missing" };
+    return { word: w, known: true, tags, verdict: verdictOf(tags[0]?.share ?? 0), checking };
   });
 }
 

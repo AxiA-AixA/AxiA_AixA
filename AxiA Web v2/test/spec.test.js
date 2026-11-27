@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSpec, checkWords, latestVotes, summarise, CLEAR } from "../lib/spec.js";
+import { buildSpec, checkWords, clientWords, latestVotes, summarise, CLEAR, WORDS_CATEGORY } from "../lib/spec.js";
 
 const ref = (file, tags, colors = []) => ({ file, tags, colors });
 const refs = [
@@ -41,7 +41,24 @@ test("the client's word is checked against the references", () => {
   const [w] = checkWords("minimal", refs);
   assert.equal(w.verdict, "shows");
   assert.equal(checkWords("futuristic", refs)[0].verdict, "missing");
-  assert.equal(checkWords("zzz", refs)[0].verdict, "unknown");
+  assert.equal(checkWords("zzz", refs)[0].verdict, "checking", "not a tag: waits for the AI");
+  assert.equal(checkWords("zzz", [])[0].verdict, "unknown");
+  assert.equal(checkWords("zzz", refs.map((r) => ({ ...r, wordsError: "no key" })))[0].verdict, "unchecked");
+});
+
+test("client words that aren't tags are checked by the AI and become points", () => {
+  assert.deepEqual(clientWords("Minimal, romantic 고급스러운"), ["romantic", "고급스러운"]);
+  const asked = refs.map((r, i) => ({ ...r, words: { romantic: i < 3 } })); // 3 of 5
+  const [w] = checkWords("romantic", asked);
+  assert.equal(w.ai, true);
+  assert.equal(w.verdict, "shows");
+  const point = buildSpec(asked, {}, [], "romantic").find((i) => i.key === "word:romantic");
+  assert.equal(point.count, 3);
+  assert.equal(point.category, WORDS_CATEGORY);
+  assert.equal(point.off, false, "60%: clear, on");
+  assert.equal(buildSpec(refs, {}, [], "romantic").some((i) => i.word), false, "no answers yet: no point");
+  const half = refs.map((r, i) => (i < 2 ? { ...r, words: { romantic: false } } : r));
+  assert.equal(checkWords("romantic", half)[0].verdict, "checking", "some answered: still checking, not 'none'");
 });
 
 test("latest answer per point wins", () => {
