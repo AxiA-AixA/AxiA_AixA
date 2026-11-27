@@ -21,15 +21,15 @@ export function zoomedAt(cam, canvas, m, k) {
 }
 
 // One easing step toward the camera that shows every node in the free area of the canvas
-// (`side` px are covered by panels on the right, `top` px on top). Returns the new camera.
-export function fitStep(cam, canvas, nodes, { pad, side, top }) {
+// (`side` px are covered by panels on the right, `top` px on top, `bottom` px at the bottom). Returns the new camera.
+export function fitStep(cam, canvas, nodes, { pad, side, top, bottom = 0 }) {
   const { minX, maxX, minY, maxY } = bounds(nodes);
   const k = clampZoom(Math.min(
     (canvas.clientWidth - side) / (maxX - minX + pad / cam.k),
-    (canvas.clientHeight - top) / (maxY - minY + pad / cam.k),
+    (canvas.clientHeight - top - bottom) / (maxY - minY + pad / cam.k),
   ));
   const ease = (a, b) => a + (b - a) * 0.15;
-  return { k: ease(cam.k, k), x: ease(cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(cam.y, (minY + maxY) / 2 - top / 2 / k) };
+  return { k: ease(cam.k, k), x: ease(cam.x, (minX + maxX) / 2 + side / 2 / k), y: ease(cam.y, (minY + maxY) / 2 - (top - bottom) / 2 / k) };
 }
 
 // Did the camera move enough to be worth a redraw?

@@ -1,6 +1,6 @@
 "use client";
 
-// Library: every reference, with their tags. Add references (links, files, ⌘V, drop), search,
+// Library: every reference, with their tags. Add references (links, files, ⌘V, drop, Instagram JSON), search,
 // and add your own tags to one image or to many selected at once. Your tags count like the AI's
 // everywhere (map, search, spec). Tag images "AxiA symbol" to put them on the map's first screen.
 
@@ -10,7 +10,8 @@ import { countTerms, passes, suggest } from "@/lib/graph/terms";
 import { useAddReferences } from "../shared/useAddReferences";
 import { changeTags, SHOWCASE_TAG, withUserTags } from "../shared/tags";
 import RefGrid from "../shared/RefGrid";
-import PageHeader from "../shell/PageHeader";
+import RefDetail from "../shared/RefDetail";
+import HeadTools from "../shell/HeadTools";
 
 const POLL_MS = 4000;
 
@@ -27,21 +28,18 @@ export default function Library() {
   const [open, setOpen] = useState(null);
   const linkInput = useRef(null);
   const fileInput = useRef(null);
-
-  // The sidebar's search opens /library?q=…
-  useEffect(() => {
-    const read = () => { const q = new URLSearchParams(location.search).get("q"); if (q != null) setQuery(q); };
-    const onSearch = (e) => setQuery(e.detail);
-    read();
-    addEventListener("popstate", read);
-    addEventListener("axia-search", onSearch); // searched again while already here
-    return () => { removeEventListener("popstate", read); removeEventListener("axia-search", onSearch); };
-  }, []);
+  const jsonInput = useRef(null);
 
   const reload = useCallback(() => fetchLibrary(etag.current)
     .then((d) => { if (d) { etag.current = d.etag; setLib(d); } })
     .catch(() => setLib(OFFLINE)), []);
   useEffect(() => { reload(); const t = setInterval(reload, POLL_MS); return () => clearInterval(t); }, [reload]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") setOpen(null); };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
 
   const adder = useAddReferences("/api/library/add", {
     after: reload, linkInput,
@@ -70,6 +68,18 @@ export default function Library() {
   const allTerms = useMemo(() => countTerms(lib.items), [lib.items]);
   const ideas = suggest(terms, "", 12);
 
+  // Instagram: the JSON the saved-posts collector extension exports.
+  async function importJson(file) {
+    if (!file) return;
+    setMsg("Importing Instagram JSON… a large file can take a few minutes.");
+    try {
+      const res = await fetch("/api/library/import", { method: "POST", headers: { "content-type": "application/json" }, body: await file.text() });
+      const d = await res.json();
+      setMsg(d.error ?? `Added ${d.added} from Instagram (${d.new} new${d.failed ? `, ${d.failed} failed: usually expired thumbnail links` : ""}). AxiA is tagging them.`);
+    } catch { setMsg("Couldn't import that file. Check that it's the extension's JSON and that AxiA is running."); }
+    etag.current = null; reload();
+  }
+
   const select = (id, on) => setSelected((cur) => { const next = new Set(cur); on ? next.add(id) : next.delete(id); return next; });
   const ids = [...selected];
   function bulkAdd(e) {
@@ -83,10 +93,15 @@ export default function Library() {
 
   return (
     <section className="library">
-      <PageHeader title={<>Library <span className="muted">{lib.items.length}</span></>}
-        sub="Everything you’ve saved, with the AI’s tags and your own. Select several images to tag them at once.">
-        <button className="btn outline" onClick={() => fileInput.current?.click()} disabled={!lib.online}>Upload images</button>
-      </PageHeader>
+      {/* In the header row: search, then adding */}
+      <HeadTools>
+        <input id="page-search" className="tool-search glass" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tags, titles or sites" aria-label="Search the library" />
+        <span className="muted head-count">{shown.length === lib.items.length ? `${lib.items.length} references` : `${shown.length} of ${lib.items.length}`}</span>
+        <span className="head-spacer" />
+        <button className="tool glass" title="JSON exported from the Instagram saved-posts collector extension" onClick={() => jsonInput.current?.click()} disabled={!lib.online}>Instagram JSON</button>
+        <button className="tool glass" onClick={() => fileInput.current?.click()} disabled={!lib.online}>Upload images</button>
+        <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={(e) => { importJson(e.target.files[0]); e.target.value = ""; }} />
+      </HeadTools>
 
       {!lib.online && <p className="notice glass">The AI analyser (axia-prototype) is off. Open <code>Axia-실행-Mac.command</code> in the axia-prototype folder, then refresh.</p>}
 
@@ -103,15 +118,11 @@ export default function Library() {
         {adder.error && <p className="error" role="alert">{adder.error}</p>}
       </div>
 
-      <div className="lib-tools">
-        <input className="lib-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tags, titles or sites" aria-label="Search the library" />
+      <div className="tag-chips">
         <div className="segmented" role="group" aria-label="Show">
           <button aria-pressed={!onlyMine} onClick={() => setOnlyMine(false)}>All</button>
           <button aria-pressed={onlyMine} onClick={() => setOnlyMine(true)}>With my tags</button>
         </div>
-        <span className="muted">{shown.length} shown</span>
-      </div>
-      <div className="tag-chips">
         {filters.map((t) => <button key={t} className="chip on" onClick={() => setFilters(filters.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>)}
         {ideas.map(([t, n]) => <button key={t} className="chip" onClick={() => setFilters([...filters, t])}>{t} <span className="muted">{n}</span></button>)}
       </div>
@@ -136,18 +147,12 @@ export default function Library() {
         onTags={(e, change) => tag([e.id], change)}
         empty={lib.items.length ? "Nothing matches. Clear the search or filters." : "No references yet. Paste a link above or drop images here."} />
 
+      {/* The clicked image, large, over the page on the right */}
       {open && (
-        <div className="picker-backdrop" role="dialog" aria-modal="true" aria-label="Reference" onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
-          <div className="lib-detail glass">
-            <img src={open.image} alt={open.title || ""} />
-            <div>
-              {open.title && <h2>{open.title}</h2>}
-              {open.url && <a href={open.url} target="_blank" rel="noopener noreferrer">{open.url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)} ↗</a>}
-              <p className="muted">{open.tags.join(" · ") || "Not tagged yet"}</p>
-              <button className="btn primary" onClick={() => setOpen(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+        <aside className="inspector" aria-label="Selected reference">
+          <RefDetail entry={open} onClose={() => setOpen(null)} isOn={(t) => filters.includes(t)}
+            onTag={(t) => setFilters(filters.includes(t) ? filters.filter((x) => x !== t) : [...filters, t])} />
+        </aside>
       )}
       {adder.dragging && <div className="drop-overlay" aria-hidden="true"><p>Drop to add to your library</p></div>}
     </section>

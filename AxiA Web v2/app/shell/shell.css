@@ -1,48 +1,74 @@
-/* App frame, after Figma's file browser: a fixed sidebar and the page beside it. Same dark mood. */
-:root { --sidebar: 232px; --bar-h: 64px; }
+/* App frame: one header row over the page: the symbol, the three places, the page's own tools
+   (#head-tools), ⋯ at the far right. Every control in it is 36 px tall, so the row reads as one line.
+   The page has the whole window; a clicked image opens over it on the right (.inspector). */
+:root { --gap: 12px; --head-h: 60px; --insp-w: clamp(320px, 30vw, 480px); }
 
-.sidebar {
-  position: fixed; inset: 0 auto 0 0; z-index: 30; width: var(--sidebar);
-  display: flex; flex-direction: column; gap: 4px; padding: 14px 10px 12px;
-  background: #111113; border-right: 1px solid var(--line); overflow-y: auto;
+.app-head {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30; height: var(--head-h);
+  display: flex; align-items: center; gap: 8px; padding: 0 20px;
 }
-.side-logo { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-bottom: 8px; color: var(--black); text-decoration: none; }
-.side-logo svg { display: block; width: auto; }
-.side-search {
-  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-bottom: 10px;
-  border-radius: 8px; background: var(--hi); color: var(--muted);
-}
-.side-search:focus-within { box-shadow: 0 0 0 2px var(--focus); }
-.side-search input { flex: 1; min-width: 0; border: 0; padding: 0; background: none; outline: none; font-size: 13px; color: var(--black); }
-.side-search input::placeholder { color: var(--muted); }
-.side-search kbd { font: 11px var(--font); color: var(--muted); opacity: 0.7; }
-.side-nav, .side-section, .side-bottom { display: grid; gap: 1px; }
-.side-item {
-  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px;
-  background: none; color: var(--muted); font-size: 13px; text-align: left; text-decoration: none; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.side-item svg { flex: none; }
-.side-item:hover { background: var(--hi); color: var(--black); }
-.side-item[aria-current="page"] { background: var(--hi-strong); color: var(--black); }
-.side-item.small { height: 28px; font-size: 12.5px; display: block; line-height: 28px; }
-.side-dot { display: inline-block; width: 6px; height: 6px; margin: 0 12px 1px 5px; border-radius: 50%; background: var(--muted); opacity: 0.6; vertical-align: middle; }
-.side-section { margin-top: 18px; }
-.side-head { padding: 0 8px 6px; font-size: 11px; color: var(--muted); }
-.side-bottom { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+/* Pages scroll under it: solid as tall as the header, then a 24 px fade below it, so the space under
+   the controls reads the same as the space above them */
+.app-head::before { content: ""; position: absolute; inset: 0 0 -24px; z-index: -1; background: linear-gradient(var(--white) calc(100% - 24px), transparent); pointer-events: none; }
+:root:has(.stage) .app-head { pointer-events: none; } /* the map stays draggable around it */
+:root:has(.stage) .app-head::before { display: none; } /* the map shows to the top */
+.app-head > * { pointer-events: auto; }
+.head-logo { display: flex; align-items: center; height: 36px; padding-right: 8px; color: var(--black); }
+.head-logo svg { display: block; width: auto; }
+.head-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 10px; }
+.head-tabs a { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 7px; color: var(--muted); font-size: 13px; text-decoration: none; }
+.head-tabs a:hover { background: var(--hi); color: var(--black); }
+.head-tabs a[aria-current] { background: var(--hi-strong); color: var(--black); }
+.head-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; margin-left: 8px; }
+.head-spacer { flex: 1; }
+.head-menu { position: relative; }
+.head-menu summary { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; }
+.head-menu summary:hover { background: var(--hi); }
+.head-menu[open] summary { color: var(--black); }
+.head-menu summary, .lens-pick summary { list-style: none; cursor: pointer; }
+.head-menu summary::-webkit-details-marker, .lens-pick summary::-webkit-details-marker { display: none; }
 
-/* The page beside the sidebar */
-main.page { margin-left: var(--sidebar); max-width: none; padding: 0 32px 72px; min-height: 100vh; }
-main.bare { max-width: none; padding: 24px var(--margin); }
-.page > section { max-width: 1280px; }
+/* Pop-up lists (⋯ menu, Viewing, Display): solid, since a blur inside a blurred box doesn't blur */
+.pop {
+  position: absolute; top: calc(100% + 6px); z-index: 5; display: grid; gap: 1px; min-width: 220px; padding: 6px;
+  background: #1c1c1e; border-radius: 10px; box-shadow: var(--glass-edge), 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.head-menu .pop { right: 0; }
+.pop-item {
+  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px;
+  background: none; color: var(--muted); font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.pop-item:hover { background: var(--hi); color: var(--black); }
+.pop-item[aria-current] { background: var(--hi-strong); color: var(--black); }
+.pop-item .muted { margin-left: auto; font-size: 12px; }
+.pop-label { margin: 8px 10px 2px; color: var(--muted); font-size: 11px; }
+.pop-row { display: flex; align-items: center; gap: 2px; }
+.pop-row .pop-item { flex: 1; }
+.pop-open { padding: 0 8px; color: var(--muted); font-size: 12px; text-decoration: none; opacity: 0; }
+.pop-row:hover .pop-open, .pop-open:focus-visible { opacity: 1; }
+.pop-open:hover { color: var(--black); }
+/* ⌘ K hint inside a search field */
+.keys { display: flex; gap: 3px; }
+.keys kbd { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; background: var(--hi-strong); color: var(--black); font: 11px var(--font); }
 
-/* Page bar: title left, actions right, stays on top while scrolling */
-.page-bar {
-  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  min-height: var(--bar-h); margin: 0 -32px 24px; padding: 12px 32px;
-  background: rgba(11, 11, 12, 0.86); border-bottom: 1px solid var(--line);
+/* A clicked image, large, over the page on the right, below the header */
+.inspector {
+  position: fixed; top: var(--head-h); right: var(--gap); bottom: var(--gap); z-index: 20; width: var(--insp-w);
+  overflow-y: auto; padding: 16px; background: var(--glass); border-radius: 12px; box-shadow: var(--glass-edge), 0 16px 48px rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  animation: slide-in 0.18s ease-out;
 }
+@keyframes slide-in { from { opacity: 0; transform: translateX(16px); } }
+.inspector .detail { padding: 0; overflow: visible; }
+.inspector .detail img { max-height: 62vh; border-radius: 8px; }
+
+/* The page: the whole window below the header, left edge in line with the symbol */
+main.page { max-width: none; padding: var(--head-h) 20px 72px; min-height: 100vh; }
+main.bare { max-width: none; padding: 24px var(--margin); }
+.page > section { max-width: none; } /* every page uses the full width, like the header above it */
+
+/* Page bar: title left, actions right; no box, so it lines up with the page's own boxes below */
+.page-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 16px 0 4px; }
 .page-bar h1 { margin: 0; font-size: 18px; }
 .page-bar-title { min-width: 0; }
 .page-bar-title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; max-width: 720px; }
@@ -52,10 +78,46 @@ main.bare { max-width: none; padding: 24px var(--margin); }
 .btn.outline:hover { background: var(--hi); }
 .btn.icon { width: 30px; padding: 0; }
 
-/* Map fills the space beside the sidebar */
-.stage { left: var(--sidebar); }
-.side { top: var(--margin); }
-.map-grid { padding-top: var(--margin); }
+/* Map: the canvas fills the window; its tools are in the header row */
+.tool { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 10px; color: var(--black); font-size: 13px; white-space: nowrap; cursor: pointer; }
+.tool.icon { width: 36px; padding: 0; justify-content: center; color: var(--muted); }
+.tool[aria-pressed="true"] { background: var(--hi-strong); color: var(--black); }
+.lens-pick { position: relative; }
+.lens-pick summary svg { color: var(--muted); }
+.lens-pick .pop { left: 0; }
+.tool-search { position: relative; flex: 0 1 360px; min-width: 180px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 12px; border-radius: 10px; color: var(--muted); }
+.tool-search:focus-within { box-shadow: var(--glass-edge), 0 0 0 3px var(--focus); }
+.tool-search input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; outline: none; font-size: 13px; color: var(--black); }
+.tool-search input::placeholder { color: var(--muted); }
+.tool-search .suggest { background: #1c1c1e; }
+input.tool-search { padding: 0 12px; border: 0; outline: none; color: var(--black); font-size: 13px; }
+.head-count { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+.tool:disabled { opacity: 0.4; cursor: default; }
+.page > section { padding-top: 12px; } /* same 12 px as above the header's controls */
+.tool-search input:focus-visible, input.tool-search:focus-visible { outline: none; box-shadow: none; }
+input.tool-search:focus-visible { box-shadow: var(--glass-edge), 0 0 0 3px var(--focus); }
+.tune-pick { position: relative; }
+.tune-pick .pop { right: 0; width: 300px; display: block; padding: 12px 14px; }
+.tuning h2 { margin: 0; font-size: var(--ui-size); font-weight: 500; color: var(--black); }
+.tuning h2 span { color: var(--muted); font-weight: 400; }
+/* Dock: bottom centre over the map, the map's own controls (Viewing, tag filter); chosen tags above it */
+.map-dock { position: absolute; left: 50%; bottom: 24px; z-index: 4; transform: translateX(-50%); width: min(640px, calc(100% - 40px)); display: grid; gap: 10px; justify-items: center; }
+.map-dock .tag-chips { justify-content: center; margin: 0; }
+.dock-bar { display: flex; align-items: center; gap: 4px; width: 100%; padding: 6px; border-radius: 14px; box-shadow: var(--glass-edge), 0 12px 40px rgba(0, 0, 0, 0.4); }
+.dock-bar .tool { border-radius: 9px; }
+.dock-bar .tool:hover { background: var(--hi); }
+.dock-bar .tool-search { flex: 1; max-width: none; background: var(--hi); border-radius: 9px; }
+.map-dock .pop, .map-dock .suggest { top: auto; bottom: calc(100% + 10px); } /* lists open upwards */
+/* The dock stays put; on the map the image panel is narrower when it would reach the dock (640 px, centred) */
+.stage .inspector { width: max(280px, min(var(--insp-w), calc((100% - 640px) / 2 - 2 * var(--gap)))); }
+.map-grid { left: 0; right: 0; padding: var(--head-h) 20px 140px; }
+
+/* Map / Grid switch: the knob slides under the chosen side */
+.view-switch { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: 176px; height: 36px; padding: 3px; border-radius: 999px; }
+.view-switch::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px; background: var(--hi-strong); box-shadow: var(--glass-edge); transition: transform 0.2s ease; }
+.view-switch:has(button:last-child[aria-pressed="true"])::before { transform: translateX(100%); }
+.view-switch button { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; height: 30px; border: 0; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
+.view-switch button[aria-pressed="true"] { color: var(--black); font-weight: 500; }
 
 /* Sheet (feedback, new project): centred card over a dim page */
 .sheet-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, 0.6); }
@@ -89,20 +151,19 @@ main.bare { max-width: none; padding: 24px var(--margin); }
 .new-project-form { display: grid; gap: 14px; }
 .new-project-form .fields { grid-template-columns: 1fr; }
 
-/* Phones: the sidebar becomes a bar on top */
+/* Phones: the header is a bar on top; the panel is a sheet from the bottom, only while something is selected */
 @media (max-width: 760px) {
-  :root { --sidebar: 0px; }
-  .sidebar { inset: 0 0 auto 0; width: auto; height: 52px; flex-direction: row; align-items: center; padding: 0 8px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .side-logo { margin: 0; } .side-logo svg + svg { display: none; }
-  .side-search, .side-section, .side-head, .side-bottom .side-item:not(:first-child) { display: none; }
-  .side-nav, .side-bottom { display: flex; margin: 0; padding: 0; border: 0; }
-  .side-bottom { margin-left: auto; }
-  main.page { margin-left: 0; padding: 52px 16px 64px; }
-  .page-bar { top: 52px; margin: 0 -16px 16px; padding: 10px 16px; }
-  .stage { top: 52px; }
+  :root { --head-h: 52px; }
+  .app-head, :root:has(.stage) .app-head { right: 0; gap: 4px; padding: 0 8px 0 14px; background: var(--white); border-bottom: 1px solid var(--line); pointer-events: auto; }
+  .head-tabs { padding: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .head-tabs a { padding: 0 8px; }
+  main.page { padding: 52px 16px 64px; }
+  .inspector.idle { display: none; }
+  .inspector { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 70vh; border-radius: 14px 14px 0 0; }
+  .view-switch { margin-left: 0; }
+  .map-grid { padding: 210px var(--gap) var(--gap); }
   .feedback-form .fields.two { grid-template-columns: 1fr; }
 }
-.lib-search { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--hi); color: var(--black); font-size: 13px; outline: none; box-shadow: var(--glass-edge); }
 .feedback-form { padding: 0; background: none; box-shadow: none; }
 /* Pages without a page bar start a little below the top */
 .page > .project, .page > .how, .page > .lab, .page > .agreed, .page > .agreed-wrap { padding-top: 28px; }

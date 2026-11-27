@@ -21,8 +21,8 @@ export const GROUP_BY = {
   Platform: (e) => [e.url ? platformOf(e.url) : "file"],
 };
 
-// Searchable terms of an image: its style tags plus its project types, group name and platform,
-// so those can be searched and filtered like tags. KIND remembers which non-tag kind a term is.
+// Searchable terms of an image: its style tags plus its project types, group name, platform and the
+// client words the AI saw in it, so those can be searched and filtered like tags. KIND remembers which non-tag kind a term is.
 export const KIND = new Map();
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const termCache = new WeakMap();
@@ -37,6 +37,7 @@ export function termsOf(e) {
   for (const f of e.fields) add(FIELD_NAMES[f] ?? f, "Type");
   add(e.group_name && cap(e.group_name), "Group");
   if (e.url) add(platformOf(e.url), "Platform");
+  for (const [w, yes] of Object.entries(e.words ?? {})) if (yes === true) add(cap(w), "Word"); // a client's word the AI saw in it
   termCache.set(e, terms);
   return terms;
 }
@@ -51,11 +52,13 @@ export function countTerms(entries, exclude = []) {
   return Object.entries(count).sort((a, b) => b[1] - a[1]);
 }
 
-// Suggestions while typing: terms containing the text, those starting with it first, then by use.
+// Suggestions while typing: terms containing the text; those starting with it first, then those
+// with a word starting with it ("blu" -> "Dark Blue"), then the rest; by use within each.
 export function suggest(terms, query, limit = 8) {
   const q = query.trim().toLowerCase();
   if (!q) return terms.slice(0, limit);
+  const rank = (t) => (t.startsWith(q) ? 2 : t.includes(" " + q) || t.includes("-" + q) ? 1 : 0);
   return terms.filter(([t]) => t.toLowerCase().includes(q))
-    .sort((a, b) => b[0].toLowerCase().startsWith(q) - a[0].toLowerCase().startsWith(q) || b[1] - a[1])
+    .sort((a, b) => rank(b[0].toLowerCase()) - rank(a[0].toLowerCase()) || b[1] - a[1])
     .slice(0, limit);
 }

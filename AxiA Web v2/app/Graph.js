@@ -1,9 +1,10 @@
 "use client";
 
-// The reference map: the AxiA symbol in the centre, with the references that share its look around it
-// (the ones tagged "AxiA symbol" in Library; until then the closest chrome / metal symbol images).
-// The rest of the library is not on the map in this version. This file holds the React side: what is
-// shown (search filters, map or grid) and the panels.
+// The reference map, seen through a lens: Default (the AxiA symbol image, public/brand/AxiA_Symbol_500.png)
+// or a project. The lens sits in the centre, its tags in a ring around it, and the references with
+// those tags (as if they were filters) linked to them. Clicking a tag shows its references in the grid.
+// The map takes the whole window; its tools sit in the header row, a clicked reference opens large on
+// the right, over the map. This file holds the React side: what is shown (filters, map or grid) and panels.
 // The rest lives in small modules:
 //   lib/graph/terms.js   grouping, search terms, suggestions (pure)
 //   lib/graph/layout.js  force layout with a quadtree (pure)
@@ -14,20 +15,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { hostOf } from "@/lib/links";
-import { KIND, countTerms, fieldNames, passes, suggest } from "@/lib/graph/terms";
-import { step } from "@/lib/graph/layout";
+import { useRouter } from "next/navigation";
+import { KIND, countTerms, passes, suggest, termsOf } from "@/lib/graph/terms";
+import { lensTags } from "@/lib/spec";
+import { place, step } from "@/lib/graph/layout";
 import { loadThumb } from "@/lib/graph/thumbs";
 import { fetchLibrary } from "@/lib/client/library";
 import { camMoved, fitStep, toScreen } from "./graph/camera";
 import { drawMap } from "./graph/draw";
 import { attachInput } from "./graph/input";
 import RefGrid from "./shared/RefGrid";
-import { changeTags, symbolRefs } from "./shared/tags";
+import { changeTags } from "./shared/tags";
+import { ChevronIcon, GridIcon, MapIcon, SettingsIcon } from "./shell/icons";
+import RefDetail from "./shared/RefDetail";
+import HeadTools from "./shell/HeadTools";
 
-// Display settings. The sliders are a design tool: they show only with ?tune in the address.
+// Display settings (the sliders under Display).
 const TUNING = [
-  { key: "ring", label: "Distance from the symbol", min: 120, max: 500, step: 10, value: 230 },
   { key: "spread", label: "Spread (dot repulsion)", min: 20, max: 600, step: 10, value: 400 },
   { key: "dot", label: "Image size", min: 6, max: 120, step: 1, value: 15 },
   { key: "showAt", label: "Image shows from radius (px)", min: 3, max: 40, step: 1, value: 5 },
@@ -37,31 +41,34 @@ const TUNING = [
   { key: "corner", label: "Corner radius (px)", min: 0, max: 30, step: 1, value: 8 },
 ];
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
-const SYMBOL_HUB = "AxiA"; // the one hub: the AxiA symbol
-const SIDE_W = 340;      // right-hand panel column (matches .side in globals.css)
+// The symbol image's library id (sha1 of public/brand/AxiA_Symbol_500.png). Its tags make the ring.
+const SYMBOL_ID = "95fc3d268585a41a";
+const GRID_MAX = 300; // grid cards at most (the closest first)
+const ENOUGH = 10;     // references a lens should show; fewer: ask for one tag fewer
 const POLL_MS = 5000;    // library refresh, so new analysis results move in live
 const LAYOUT_MS = 8;     // layout time per frame
-const STORE = "axia-tuning-symbol-2"; // new name: the old big-library settings don't carry over
+const STORE = "axia-tuning-symbol-3"; // new name: the old big-library settings don't carry over
 const FILTERS = "axia-map-view"; // searched terms + map/grid, kept for this browser tab
 
 // The map state lives outside React (it changes every frame) and is kept while visiting other
 // pages, so coming back shows the same layout. Reset on reload.
 let kept = null;
 const freshState = () => ({
-  nodes: [], byId: new Map(), shownIds: new Set(), hub: null, etag: null,
+  nodes: [], byId: new Map(), tagHubs: new Map(), etag: null,
   cam: { x: 0, y: 0, k: 1 }, shownK: 1, heat: 0, mouse: null, hover: null, dragged: null, userCam: false, dirty: true,
 });
 const readJSON = (store, key) => { try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; } };
 
-export default function Graph() {
+// lens: a project id (/map?lens=…) to see the map through that project; none: the AxiA symbol.
+export default function Graph({ lens }) {
+  const router = useRouter();
   const canvasRef = useRef(null);
   const g = useRef(kept ?? freshState());
   const [count, setCount] = useState(0);         // references in the library
   const [online, setOnline] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [tune, setTune] = useState(DEFAULTS);
-  const [showTuning, setShowTuning] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false); // the Display settings, opened with ⚙
   // What is shown: sel = searched terms; mode = "map" or "grid".
   const [view, setView] = useState({ sel: [], mode: "map" });
   const [shownEntries, setShownEntries] = useState([]); // for the grid view
@@ -71,36 +78,81 @@ export default function Graph() {
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [detail, setDetail] = useState(null);    // clicked image, shown in the side panel
+  const [lensInfo, setLensInfo] = useState({ name: "Default", tags: [], need: 0 });
+  const [lensOpen, setLensOpen] = useState(false); // the "Viewing" list
+  const [recent, setRecent] = useState([]);        // recent projects, for that list
+  const dockRef = useRef(null);
+  const projRef = useRef(null);                  // the lens project ({ name, word, refs, edits }), or null
 
   // The canvas loop reads these without re-subscribing.
   const viewRef = useRef(view); viewRef.current = view;
   const tuneRef = useRef(tune); tuneRef.current = tune;
   const detailRef = useRef(detail); detailRef.current = detail;
-  const panelWas = useRef(true); // the panel folds while an image is open, then comes back as it was
   g.current.dirty = true; // any re-render (settings, filters, panels) redraws once
 
   // ---------- what is shown ----------
   // Recompute the shown nodes and their links; `heat` lets the layout move again.
+  // The lens is what the map is seen through: the AxiA symbol reference and its tags, or a project
+  // (in the centre, linked to its tags: the client's words and the spec's points that are on).
   function rebuild(heat = 1, v = viewRef.current) {
     const s = g.current;
-    s.hub ??= { id: SYMBOL_HUB, hub: true, symbol: true, x: 0, y: 0, vx: 0, vy: 0, pinned: true }; // stays in the centre
-    const items = [...s.byId.values()].filter((n) => s.shownIds.has(n.id) && passes(n.entry, v.sel));
-    s.hub.kids = items;
-    s.nodes = [s.hub, ...items];
-    // An even ring around the symbol, first one at the top. They stay put (drag one to move it).
-    const R = tuneRef.current.ring;
-    items.forEach((n, i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / items.length;
-      Object.assign(n, { parents: [s.hub], x: R * Math.cos(a), y: R * Math.sin(a), vx: 0, vy: 0, pinned: true });
+    const proj = projRef.current;
+    const sym = s.byId.get(SYMBOL_ID);
+    const projRefs = proj ? proj.refs.map((id) => s.byId.get(id)).filter(Boolean) : [];
+    const tags = proj ? lensTags(proj, projRefs.map((n) => n.entry)) : sym?.entry.tags ?? [];
+    const centre = proj ? (s.projNode ??= { hub: true, center: true }) : sym;
+    if (centre) thumb(proj ? projRefs[0] ?? centre : sym); // first in the image queue
+    const hubs = tags.map((t) => {
+      if (!s.tagHubs.has(t)) s.tagHubs.set(t, { id: t, hub: true, vx: 0, vy: 0, pinned: true });
+      return Object.assign(s.tagHubs.get(t), { kids: [] });
     });
+    // The references with every one of the lens's tags (as if they were filters) and every searched
+    // term. Fewer than ENOUGH: one tag fewer at a time (a project's tags rarely all meet in one image).
+    const has = (n) => { const t = new Set(termsOf(n.entry).map((x) => x.toLowerCase())); return hubs.filter((h) => t.has(h.id.toLowerCase())); };
+    const cand = [];
+    for (const n of s.byId.values()) {
+      if (n === centre || !passes(n.entry, v.sel)) continue;
+      n.parents = has(n);
+      if (n.parents.length) cand.push(n);
+    }
+    let need = hubs.length;
+    while (need > 1 && cand.filter((n) => n.parents.length >= need).length < ENOUGH) need--;
+    const shown = hubs.length ? cand.filter((n) => n.parents.length >= need) : [];
+    shown.sort((a, b) => b.parents.length - a.parents.length);
+    for (const n of shown) { for (const h of n.parents) h.kids.push(n); thumb(n); }
+    // The tags stay in an even ring around the centre, first one at the top, the ring as wide as the
+    // cloud of references gets (drag a tag to move it until the next change).
+    const R = Math.max(300, 60 * Math.sqrt(shown.length));
+    hubs.forEach((h, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / hubs.length;
+      Object.assign(h, { x: R * Math.cos(a), y: R * Math.sin(a) });
+    });
+    for (const n of shown) if (n.x == null || Number.isNaN(n.x)) place(n, n.parents[0]); // new: next to a tag
+    if (sym) sym.pinned = false; // a reference like any other, unless it is the centre
+    if (centre) { // the centre stays put, a line to each of its tags
+      Object.assign(centre, { parents: hubs, x: 0, y: 0, vx: 0, vy: 0, pinned: true });
+      if (proj) Object.assign(centre, { id: proj.name, kids: projRefs });
+    }
+    s.nodes = [...shown, ...hubs, ...(centre ? [centre] : [])];
     s.userCam = false;
     s.dirty = true;
     s.heat = Math.max(s.heat, heat);
-    // Terms of the shown images only, so each pick narrows the result.
-    setTerms(countTerms(items.map((n) => n.entry), v.sel));
-    setHits(items.length);
-    setShownEntries(items.map((n) => n.entry));
+    setLensInfo({ name: proj ? proj.name : "Default", tags: hubs.map((h) => h.id), need });
+    // Grid: the same references, the ones with most of the tags first.
+    const pool = shown.map((n) => n.entry);
+    // Suggestions are tags only (no sites or types), from everything shown.
+    setTerms(countTerms(pool, v.sel).filter(([t]) => !KIND.has(t)));
+    setHits(pool.length);
+    setShownEntries(pool.slice(0, GRID_MAX));
   }
+  // Load a node's thumbnail once.
+  function thumb(n) {
+    if (n.loading) return;
+    n.loading = true;
+    if (n.entry) loadThumb(n, [n.entry.thumb, n.entry.image], () => { g.current.dirty = true; });
+  }
+  // A tag shows its references in the grid; a project in the centre opens the project.
+  const openTag = (hub) => (hub.center ? router.push(`/project/${projRef.current.id}`) : changeView({ sel: [hub.id], mode: "grid" }));
 
   function changeView(patch) {
     const v = { ...viewRef.current, ...patch };
@@ -133,22 +185,14 @@ export default function Graph() {
         if (detailRef.current?.id === e.id) setDetail(e); // keep the open panel current
       }
     }
-    const ids = symbolRefs([...s.byId.values()].map((n) => n.entry)).map((e) => e.id);
-    if (ids.join() !== [...s.shownIds].join()) { s.shownIds = new Set(ids); changed = true; }
-    for (const id of ids) { // only the shown images load their thumbnails
-      const n = s.byId.get(id);
-      if (!n.loading) { n.loading = true; loadThumb(n, [n.entry.thumb, n.entry.image], () => { s.dirty = true; }); }
-    }
     if (changed) rebuild(0.6);
-    setCount(ids.length);
+    setCount(s.byId.size);
   }
 
   useEffect(() => {
     const s = g.current;
     // Settings are remembered per browser; the view per tab.
     setTune({ ...DEFAULTS, ...readJSON(localStorage, STORE) });
-    setShowTuning(new URLSearchParams(location.search).has("tune"));
-    if (matchMedia("(max-width: 640px)").matches) { setPanelOpen(false); panelWas.current = false; } // phones: keep the map visible
     const saved = readJSON(sessionStorage, FILTERS);
     if (saved && Array.isArray(saved.sel)) { viewRef.current = { ...viewRef.current, sel: saved.sel, mode: saved.mode === "grid" ? "grid" : "map" }; setView(viewRef.current); }
 
@@ -157,7 +201,7 @@ export default function Graph() {
       Object.assign(s, { mouse: null, hover: null, dragged: null });
       rebuild(0);
       s.userCam = userCam;
-      setZoom(s.cam.k); setCount(s.shownIds.size);
+      setZoom(s.cam.k); setCount(s.byId.size);
     }
     const load = () => fetchLibrary(s.etag)
       .then((d) => { if (d) { s.etag = d.etag; setOnline(d.online); merge(d.items); } })
@@ -168,28 +212,51 @@ export default function Graph() {
     return () => { clearInterval(t); kept = s; };
   }, []);
 
+  useEffect(() => {
+    fetch("/api/projects").then((r) => r.json())
+      .then((list) => setRecent([...list].sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, 8)))
+      .catch(() => {});
+  }, []);
+
+  // The lens project: read it whenever the lens changes (the sidebar's "Viewing" list sets ?lens=).
+  useEffect(() => {
+    let gone = false;
+    const show = (p) => { if (gone) return; projRef.current = p; rebuild(1); };
+    if (!lens) show(null);
+    else fetch(`/api/projects/${lens}`).then((r) => (r.ok ? r.json() : null)).then(show).catch(() => show(null));
+    return () => { gone = true; };
+  }, [lens]);
+
   function setParam(key, value) {
     const next = { ...tune, [key]: value };
     setTune(next);
-    if (key === "ring") { tuneRef.current = next; rebuild(0); }
     try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
   }
   function resetLayout() {
     setTune(DEFAULTS);
     try { localStorage.removeItem(STORE); } catch {}
     tuneRef.current = DEFAULTS;
-    rebuild(0);
+    const s = g.current;
+    for (const n of s.byId.values()) if (n.id !== SYMBOL_ID) n.pinned = false;
+    rebuild(1);
   }
 
+  // Opening an image: the panel covers the right of the window, so move the map (not refit it) until
+  // the clicked dot sits in the middle of what's left.
   function openDetail(e) {
-    if (!detailRef.current) { panelWas.current = panelOpen; setPanelOpen(false); }
-    setDetail(e); g.current.userCam = false;
+    setDetail(e);
+    const s = g.current, n = s.byId.get(e.id), canvas = canvasRef.current;
+    if (!n || n.x == null || viewRef.current.mode === "grid" || !canvas) return;
+    const panel = Math.max(280, Math.min(Math.min(480, Math.max(320, innerWidth * 0.3)), (innerWidth - 640) / 2 - 24)); // .stage .inspector in shell.css
+    const free = canvas.clientWidth - (panel + 24);
+    const p = toScreen(s.cam, canvas, n);
+    if (p.x < free - 40) return;
+    s.cam = { ...s.cam, x: s.cam.x + (p.x - free / 2) / s.cam.k };
+    s.userCam = true; s.dirty = true;
   }
-  function closeDetail() {
-    if (detailRef.current) setPanelOpen(panelWas.current);
-    setDetail(null); g.current.userCam = false;
-  }
+  const closeDetail = () => setDetail(null);
   const openRef = useRef(openDetail); openRef.current = openDetail;
+  const tagRef = useRef(openTag); tagRef.current = openTag;
   const loadRef = useRef(() => {});
   // Grid view: hand-made tags can be added and removed on each card.
   async function tagEntry(e, change) {
@@ -204,8 +271,12 @@ export default function Graph() {
     const css = getComputedStyle(document.documentElement), colors = {};
     const color = (v) => (colors[v] ??= css.getPropertyValue(v).trim());
     const phone = () => canvas.clientWidth <= 640;
-    // The symbol is a bit larger than the images around it.
-    const hubR = () => Math.max(40, Math.min(80, 50 * s.cam.k)); // half the symbol's width, px
+    // What covers the map: the header row on top, the dock (and the chosen tags) at the bottom. (The
+    // image panel opens over the map without refitting it; see openDetail.)
+    const covered = () => ({
+      side: 0, top: document.querySelector(".app-head")?.getBoundingClientRect().bottom ?? 0,
+      bottom: dockRef.current ? canvas.clientHeight - dockRef.current.getBoundingClientRect().top : 0,
+    });    const hubR = () => Math.max(14, Math.min(26, 20 * s.cam.k)); // tag circles, px
     const pos = (n) => toScreen(s.cam, canvas, n);
     const hubAt = (m) => m && s.nodes.findLast((n) => n.hub && Math.hypot(pos(n).x - m.x, pos(n).y - m.y) <= Math.max(hubR(n), 10));
     // Hub circles keep a screen-px gap; the zoom used is floored so it can't feed back into fitting
@@ -224,7 +295,7 @@ export default function Graph() {
         const before = s.cam;
         s.cam = fitStep(s.cam, canvas, s.nodes, {
           pad: 2 * tuneRef.current.dot * s.cam.k + 80, // room for the images around the ring
-          side: phone() ? 0 : SIDE_W + 48, top: phone() ? 210 : 0, // where the panels cover the map
+          ...covered(), // where the panels cover the map
         });
         fitted = camMoved(before, s.cam);
         if (Math.abs(s.cam.k - s.shownK) > 0.01) { s.shownK = s.cam.k; setZoom(s.cam.k); }
@@ -239,7 +310,7 @@ export default function Graph() {
     };
     frame();
 
-    const detach = attachInput(canvas, s, { hubAt, onOpen: (e) => openRef.current(e), onZoom: setZoom });
+    const detach = attachInput(canvas, s, { hubAt, onOpen: (e) => openRef.current(e), onHub: (h) => tagRef.current(h), onEmpty: () => closeRef.current(), onZoom: setZoom });
     const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
     addEventListener("keydown", onKey);
     return () => { cancelAnimationFrame(raf); detach(); removeEventListener("keydown", onKey); };
@@ -263,6 +334,14 @@ export default function Graph() {
     }
   }
 
+  const symbol = g.current.byId.get(SYMBOL_ID)?.entry;
+  const countLine = !online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
+    : view.sel.length ? `${hits} of ${count} references`
+    : !lensInfo.tags.length ? `${lensInfo.name} has no tags yet`
+    : lensInfo.need === lensInfo.tags.length ? `${hits} references have all ${lensInfo.tags.length} of these tags`
+    : `${hits} references have ${lensInfo.need} or more of these ${lensInfo.tags.length} tags`;
+  const project = projRef.current;
+
   return (
     <div className="stage">
       <canvas ref={canvasRef} className="graph" style={view.mode === "grid" ? { display: "none" } : undefined} />
@@ -272,22 +351,75 @@ export default function Graph() {
             empty="No references match. Remove a filter to see more." />
         </div>
       )}
-      <div className="side">
-        <div className="tag-search glass">
-          <p className="tag-status">
-            {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : view.sel.length ? `${hits} of ${count} references around the AxiA symbol` : `${count} references around the AxiA symbol · ${terms.length} tags`}
-          </p>
-          <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTerm(suggestions[active]?.[0]); }} role="search">
+
+      {/* In the header row: map or grid, display settings */}
+      <HeadTools>
+        <span className="head-spacer" />
+        <div className="view-switch glass" role="group" aria-label="View">
+          <button type="button" aria-pressed={view.mode !== "grid"} onClick={() => changeView({ mode: "map" })}><MapIcon />Map</button>
+          <button type="button" aria-pressed={view.mode === "grid"} onClick={() => changeView({ mode: "grid" })}><GridIcon />Grid</button>
+        </div>
+        <div className="tune-pick">
+          <button type="button" className="tool glass icon" aria-label="Display settings" title="Display settings" aria-pressed={panelOpen}
+            onClick={() => setPanelOpen(!panelOpen)}><SettingsIcon /></button>
+          {panelOpen && (
+            <section className="tuning pop" aria-label="Display settings">
+              <h2>Display <span>· zoom {zoom.toFixed(2)}</span></h2>
+              {TUNING.map((p) => (
+                <label key={p.key}>
+                  <span>{p.label}</span>
+                  <output>{tune[p.key]}</output>
+                  <input type="range" min={p.min} max={p.max} step={p.step} value={tune[p.key]}
+                    style={{ "--p": `${((tune[p.key] - p.min) / (p.max - p.min)) * 100}%` }}
+                    onChange={(e) => setParam(p.key, Number(e.target.value))} />
+                </label>
+              ))}
+              <div className="tuning-actions">
+                <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
+                <button type="button" className="btn" title="Unpin dots you moved and lay the map out again" onClick={resetLayout}>Reset</button>
+              </div>
+            </section>
+          )}
+        </div>
+      </HeadTools>
+
+      {/* Bottom centre, over the map: what it's seen through and the tag filter; the chosen tags above */}
+      <div className="map-dock" ref={dockRef}>
+        {view.sel.length > 0 && (
+          <div className="tag-chips">
+            {view.sel.map((t) => (
+              <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
+                onClick={() => setSelected(view.sel.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
+            ))}
+            {view.sel.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
+            <span className="muted">{countLine}</span>
+          </div>
+        )}
+        <div className="dock-bar glass">
+          <details className="lens-pick" open={lensOpen} onToggle={(e) => setLensOpen(e.currentTarget.open)}>
+            <summary className="tool" title="What the map is seen through"><span className="muted">Viewing</span> {project?.name ?? "Default"}<ChevronIcon /></summary>
+            <div className="pop">
+              <Link href="/map" className="pop-item" aria-current={!lens ? "true" : undefined} onClick={() => setLensOpen(false)}>Default <span className="muted">AxiA symbol</span></Link>
+              {recent.length > 0 && <p className="pop-label">Recent projects</p>}
+              {recent.map((p) => (
+                <div key={p.id} className="pop-row">
+                  <Link href={`/map?lens=${p.id}`} className="pop-item" aria-current={lens === p.id ? "true" : undefined} onClick={() => setLensOpen(false)}>{p.name}</Link>
+                  <Link href={`/project/${p.id}`} className="pop-open" title={`Open ${p.name}`}>Open ↗</Link>
+                </div>
+              ))}
+            </div>
+          </details>
+          <form className="tool-search" onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTerm(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
             </svg>
-            <input value={query} placeholder={view.sel.length ? "Add another filter" : "Search tags, types, groups, platforms"}
-              aria-label="Search tags" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
+            <input id="page-search" value={query} placeholder={view.sel.length ? "Add another tag" : "Filter by tag"}
+              aria-label="Filter by tag" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
               aria-controls="tag-suggest" aria-activedescendant={showSuggest ? `tag-suggest-${active}` : undefined}
               onChange={(e) => { setQuery(e.target.value); setActive(0); setSuggestOpen(true); }}
               onFocus={() => setSuggestOpen(true)} onClick={() => setSuggestOpen(true)}
               onBlur={() => setSuggestOpen(false)} onKeyDown={onSearchKey} />
+            <span className="keys" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span>
             {showSuggest && (
               <ul id="tag-suggest" className="suggest" role="listbox" aria-label="Tag suggestions">
                 <li className="suggest-head" role="presentation">{q ? "Tags" : view.sel.length ? "Related tags" : "Popular tags"}</li>
@@ -304,66 +436,20 @@ export default function Graph() {
               </ul>
             )}
           </form>
-          {view.sel.length > 0 && (
-            <div className="tag-chips">
-              {view.sel.map((t) => (
-                <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
-                  onClick={() => setSelected(view.sel.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
-              ))}
-              {view.sel.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
-            </div>
-          )}
-          <div className="segmented view-toggle" role="group" aria-label="View">
-            <button type="button" aria-pressed={view.mode !== "grid"} onClick={() => changeView({ mode: "map" })}>Map</button>
-            <button type="button" aria-pressed={view.mode === "grid"} onClick={() => changeView({ mode: "grid" })}>Grid {hits ? `· ${hits}` : ""}</button>
-          </div>
         </div>
-
-        {detail && (
-          <section className="detail glass" aria-label="Selected reference">
-            <div className="detail-bar">
-              <span>{fieldNames(detail).join(" · ")}</span>
-              <button type="button" className="btn" onClick={closeDetail}>Close ×</button>
-            </div>
-            <img src={detail.image} alt={detail.title || "Reference image"} />
-            {detail.title && <h2>{detail.title}</h2>}
-            {!detail.tags.length && <p>Analysing… tags will appear here.</p>}
-            <div className="detail-tags">
-              {detail.tags.map((t) => (
-                <button key={t} type="button" className={view.sel.includes(t) ? "chip on" : "chip"}
-                  title={view.sel.includes(t) ? "Remove this tag filter" : "Filter the map by this tag"}
-                  onClick={() => toggleTerm(t)}>{t}</button>
-              ))}
-            </div>
-            {detail.url && (
-              <a href={detail.url} target="_blank" rel="noopener noreferrer" className="btn primary detail-source">
-                View source on {hostOf(detail.url)} ↗
-              </a>
-            )}
-          </section>
-        )}
-
-        <details className="tuning glass" open={panelOpen} onToggle={(e) => setPanelOpen(e.currentTarget.open)}>
-          <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
-          {showTuning && TUNING.map((p) => (
-            <label key={p.key}>
-              <span>{p.label}</span>
-              <output>{tune[p.key]}</output>
-              <input type="range" min={p.min} max={p.max} step={p.step} value={tune[p.key]}
-                style={{ "--p": `${((tune[p.key] - p.min) / (p.max - p.min)) * 100}%` }}
-                onChange={(e) => setParam(p.key, Number(e.target.value))} />
-            </label>
-          ))}
-          <div className="tuning-actions">
-            <button type="button" className="btn" onClick={() => { g.current.userCam = false; }}>Fit view</button>
-            <button type="button" className="btn" title="Unpin dots you moved and lay the map out again" onClick={resetLayout}>Reset</button>
-          </div>
-        </details>
       </div>
-      {count === 0 && online && (
+
+      {/* The clicked reference, large, over the map (only while one is open) */}
+      {detail && (
+        <aside className="inspector" aria-label="Selected reference">
+          <RefDetail entry={detail} onClose={closeDetail} isOn={(t) => view.sel.includes(t)} onTag={toggleTerm} />
+        </aside>
+      )}
+
+      {!lens && count > 0 && !symbol && online && (
         <div className="empty">
-          <h1>No symbol references yet</h1>
-          <p>The map shows the AxiA symbol with the references that share its look. Tag images “AxiA symbol” in Library (select them, then “Show on map’s first screen”).</p>
+          <h1>The AxiA symbol isn’t in the library</h1>
+          <p>The map shows the AxiA symbol’s tags. Add public/brand/AxiA_Symbol_500.png in Library and it appears here once analysed.</p>
           <Link href="/library" className="btn primary">Open Library</Link>
         </div>
       )}

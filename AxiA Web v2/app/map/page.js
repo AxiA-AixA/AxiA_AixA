@@ -2,7 +2,8 @@ import Graph from "../Graph";
 
 export const metadata = { title: "Map · AxiA" };
 
-// Every reference in the library as a relationship map (the v1 home page). Opened from the AxiA logo.
-export default function Map() {
-  return <Graph />;
+// The reference map, seen through the AxiA symbol or, with ?lens=<project id>, through a project.
+export default async function Map({ searchParams }) {
+  const { lens } = await searchParams;
+  return <Graph lens={typeof lens === "string" ? lens : undefined} />;
 }

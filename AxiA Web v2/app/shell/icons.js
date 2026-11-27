@@ -12,3 +12,6 @@ export const SearchIcon = I(<><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.
 export const FeedbackIcon = I(<path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" />);
 export const SettingsIcon = I(<><circle cx="8" cy="8" r="2" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" /></>);
 export const PlusIcon = I(<path d="M8 3v10M3 8h10" />);
+export const GridIcon = I(<><rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" /></>);
+export const MoreIcon = I(<><circle cx="3.5" cy="8" r=".6" /><circle cx="8" cy="8" r=".6" /><circle cx="12.5" cy="8" r=".6" /></>);
+export const ChevronIcon = I(<path d="m4.5 6.5 3.5 3.5 3.5-3.5" />);

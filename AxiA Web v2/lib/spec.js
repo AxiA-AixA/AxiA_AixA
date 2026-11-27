@@ -207,3 +207,14 @@ export function summarise(items) {
   if (!parts.length) return "";
   return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }
+
+// ---------- A project as a lens on the map ----------
+// The tags a project is seen through: the client's words (fixed tags in their usual spelling) and the
+// spec's points that are on. Custom points are free text, not tags, so they're left out.
+const CANONICAL = new Map(CATEGORIES.flatMap(([, tags]) => tags.map((t) => [t.toLowerCase(), t])));
+export function lensTags(project, refs) {
+  const words = wordsOf(project.word).map((w) => CANONICAL.get(w) ?? cap(w));
+  const spec = buildSpec(refs, project.edits, [], project.word).filter((it) => !it.off).map((it) => it.tag);
+  const seen = new Set();
+  return [...words, ...spec].filter((t) => !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
+}

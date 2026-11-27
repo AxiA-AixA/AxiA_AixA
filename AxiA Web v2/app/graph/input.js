@@ -2,10 +2,11 @@
 //   Mouse: wheel zooms around the cursor; drag empty space to pan; drag a dot or hub to move it
 //          (its links pull neighbours along, and it stays where you drop it); click a dot to open it.
 //   Touch: one finger pans, two fingers pinch-zoom, a tap opens a dot (dots are too dense to drag).
-// Changes the map state `s` directly and marks it dirty; calls onOpen(entry) and onZoom(k).
+// Changes the map state `s` directly and marks it dirty; calls onOpen(entry), onHub(hub), onEmpty() for a click on a
+// tag (a hub), and onZoom(k).
 import { toScreen, toWorld, zoomedAt } from "./camera";
 
-export function attachInput(canvas, s, { hubAt, onOpen, onZoom }) {
+export function attachInput(canvas, s, { hubAt, onOpen, onHub, onEmpty = () => {}, onZoom }) {
   let drag = null, pinch = null;
   const fingers = new Map();
   const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
@@ -63,11 +64,13 @@ export function attachInput(canvas, s, { hubAt, onOpen, onZoom }) {
     if (e.pointerType === "touch") {
       fingers.delete(e.pointerId);
       if (pinch) { if (!fingers.size) pinch = null; drag = null; return; } // lifting after a pinch is not a tap
-      if (drag && !drag.moved) { const n = dotAt(local(e)); if (n) onOpen(n.entry); }
+      if (drag && !drag.moved) { const m = local(e), n = dotAt(m), h = hubAt(m); if (n) onOpen(n.entry); else if (h) onHub(h); else onEmpty(); }
       drag = null;
       return;
     }
     if (drag && !drag.moved && drag.node && !drag.node.hub) onOpen(drag.node.entry);
+    else if (drag && !drag.moved && drag.node?.hub) onHub(drag.node);
+    else if (drag && !drag.moved) onEmpty();
     drag = null;
     s.dragged = null;
   };

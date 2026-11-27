@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cardStage, plural } from "@/lib/status";
-import PageHeader from "./shell/PageHeader";
+import HeadTools from "./shell/HeadTools";
 import { PlusIcon } from "./shell/icons";
 
 // Home: the designer's projects. Each one turns its references into a visual spec for one client.
@@ -38,9 +38,12 @@ export default function Projects() {
 
   return (
     <section className="projects">
-      <PageHeader title="Projects" sub="Each project turns your references into one visual spec you and your client agree on.">
-        <button className="btn primary" onClick={() => setCreating(true)}><PlusIcon />New project</button>
-      </PageHeader>
+      {/* In the header row */}
+      <HeadTools>
+        <span className="muted head-count">{list ? `${list.length} project${list.length === 1 ? "" : "s"} · each turns your references into one visual spec you and your client agree on` : ""}</span>
+        <span className="head-spacer" />
+        <button className="tool glass" onClick={() => setCreating(true)}><PlusIcon />New project</button>
+      </HeadTools>
 
       {!lib.online && (
         <p className="notice glass">The AI analyser (axia-prototype) is off, so references and images can’t load. Open <code>Axia-실행-Mac.command</code> (Windows: <code>Axia-실행-Windows.bat</code>) in the axia-prototype folder, then refresh.</p>
