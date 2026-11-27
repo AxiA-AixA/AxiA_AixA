@@ -27,6 +27,10 @@ Q = queue.Queue()
 STATUS = {"working": "", "note": ""}
 IMMUTABLE = "public, max-age=31536000, immutable"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
+# Some sites (Instagram, Behance) give browsers a login page but give link-preview bots the page's
+# preview tags. A pasted link is fetched as a browser first, then as a preview bot.
+PREVIEW_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+WORDS_Q = queue.Queue()  # client words to check against images: (item id, [words])
 
 DEFAULT_SETTINGS = {
     "chain": [
@@ -85,8 +89,8 @@ def save_library(lib):
 
 
 # ---------- adding ----------
-def fetch(url, referer=None, limit=25_000_000):
-    req = urllib.request.Request(url, headers={"user-agent": UA, "accept": "*/*", **({"referer": referer} if referer else {})})
+def fetch(url, referer=None, limit=25_000_000, ua=UA):
+    req = urllib.request.Request(url, headers={"user-agent": ua, "accept": "*/*", **({"referer": referer} if referer else {})})
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read(limit + 1)
         if len(data) > limit:
@@ -96,9 +100,9 @@ def fetch(url, referer=None, limit=25_000_000):
 
 def platform_of(url):
     u = (url or "").lower()
-    for k in ("instagram", "pinterest", "pin.it", "behance", "dribbble", "are.na", "cosmos", "savee", "tumblr", "x.com", "twitter"):
+    for k in ("instagram", "pinterest", "pin.it", "behance", "dribbble", "are.na", "cosmos.so", "savee", "tumblr", "x.com", "twitter"):
         if k in u:
-            return {"pin.it": "pinterest", "x.com": "x", "twitter": "x", "are.na": "arena"}.get(k, k)
+            return {"pin.it": "pinterest", "x.com": "x", "twitter": "x", "are.na": "arena", "cosmos.so": "cosmos"}.get(k, k)
     return urllib.parse.urlparse(url).netloc.replace("www.", "") if url else "file"
 
 
@@ -287,15 +291,102 @@ def replace_image(item_id, image_url):
         (IMG / old).unlink(missing_ok=True)
 
 
+def fetch_page(url):
+    """(html, content type, final url, bytes) of a pasted link. Tries as a browser, then as a link-preview
+    bot when the browser is refused or gets no preview image (a login wall)."""
+    got = err = None
+    for ua in (UA, PREVIEW_UA):
+        try:
+            data, ctype, final = fetch(url, ua=ua)
+        except Exception as e:
+            err = err or e
+            continue
+        if ctype.startswith("image/"):
+            return "", ctype, final, data
+        got = (data.decode("utf-8", errors="ignore"), ctype, final, data)
+        if meta(got[0], "og:image") or meta(got[0], "twitter:image"):
+            return got
+    if got:
+        return got
+    raise err
+
+
+# Sites whose pages hold many images worth keeping (a whole project), and how to find them in the HTML.
+BEHANCE_IMG = re.compile(r"https://mir-s3-cdn-cf\.behance\.net/project_modules/([a-z_0-9]+)/([A-Za-z0-9_.-]+\.(?:jpe?g|png|gif|webp))")
+BEHANCE_SIZES = ("source", "fs", "max_3840", "max_3840_webp", "2800_opt_1", "max_1200", "1400_opt_1", "1400", "max_1200_webp", "1400_webp", "disp")
+DRIBBBLE_IMG = re.compile(r"https://cdn\.dribbble\.com/userupload/(\d+)/file/[A-Za-z0-9_.-]+\.(?:jpe?g|png|gif|webp)")
+MANY_CAP = 30  # images taken from one project page
+
+
+def behance_images(page):
+    """Project images on a Behance project page, largest version of each, in page order."""
+    best = {}
+    for size, name in BEHANCE_IMG.findall(page):
+        rank = BEHANCE_SIZES.index(size) if size in BEHANCE_SIZES else len(BEHANCE_SIZES)
+        if name not in best or rank < best[name][0]:
+            best[name] = (rank, f"https://mir-s3-cdn-cf.behance.net/project_modules/{size}/{name}")
+    return [u for _, u in best.values()][:MANY_CAP]
+
+
+def dribbble_images(page):
+    """Shot images on a Dribbble page, one per upload (the original file when the page links it)."""
+    seen = {}
+    for m in DRIBBBLE_IMG.finditer(page):
+        up, u = m.group(1), m.group(0)
+        if up not in seen or "/original-" in u:
+            seen[up] = u
+    return [u + "?resize=1600x0" for u in seen.values()][:MANY_CAP]
+
+
+def page_images(page, base):
+    """Images in a page's HTML when it has no preview image (e.g. a portfolio site): <img> sources that
+    look like content, not icons or logos."""
+    out = []
+    for src in re.findall(r'<img[^>]+?(?:data-src|src)=["\']([^"\']+)["\']', page, re.I):
+        if src.startswith("data:") or re.search(r"\.svg|icon|logo|avatar|sprite|favicon|pixel|spacer", src, re.I):
+            continue
+        u = urllib.parse.urljoin(base, html.unescape(src))
+        if u not in out:
+            out.append(u)
+    return out[:MANY_CAP]
+
+
+def add_many(urls, page_url, title, source):
+    """Add several images from one page at once; skips the ones that fail."""
+    def one(u):
+        try:
+            return add_from_url(u, page_url=page_url, title=title, source=source)
+        except Exception:
+            return None
+    with ThreadPoolExecutor(6) as pool:
+        return [r for r in pool.map(one, urls) if r]
+
+
+def add_arena_block(url):
+    """A single Are.na block (are.na/block/123): its image through the public API."""
+    m = re.search(r"are\.na/block/(\d+)", url)
+    if not m:
+        return []
+    req = urllib.request.Request(f"https://api.are.na/v2/blocks/{m.group(1)}", headers={"user-agent": "AxiA/1.0"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        b = json.loads(r.read())
+    img = (b.get("image") or {})
+    src = (img.get("original") or {}).get("url") or (img.get("display") or {}).get("url")
+    if not src:
+        raise ValueError("This Are.na block has no image")
+    return [add_from_url(src, page_url=f"https://www.are.na/block/{m.group(1)}", title=b.get("title") or b.get("generated_title") or "", source="arena")]
+
+
 def add_from_link(url):
-    """붙여넣은 링크 처리: 이미지 주소 / 핀 / 보드 / 일반 페이지(대표 이미지)."""
+    """붙여넣은 링크 처리: 이미지 주소 / 핀 / 보드 / Are.na / Behance·Dribbble 프로젝트 / 일반 페이지(대표 이미지)."""
     url = url.strip()
     if not re.match(r"https?://", url):
         raise ValueError("Enter a link starting with http")
-    data, ctype, final = fetch(url)
+    if "are.na/block/" in url:
+        return add_arena_block(url)
+    page, ctype, final, data = fetch_page(url)
     if ctype.startswith("image/"):
         return [add_image(data, image_url=url, page_url=url)]
-    page = data.decode("utf-8", errors="ignore")
     is_board = "pinterest." in final and not re.search(r"/pin/\d+", final) and re.search(r"pinterest\.[^/]+/[^/]+/[^/?#]+/?", final)
     if is_board:
         found = add_pinterest_board_rss(final)
@@ -305,10 +396,18 @@ def add_from_link(url):
     found = add_arena_channel(final)
     if found:
         return found
+    title = meta(page, "og:title") or meta(page, "og:description")
+    many = behance_images(page) if "behance.net" in final else dribbble_images(page) if "dribbble.com" in final else []
+    if many:
+        found = add_many(many, final, title, platform_of(final))
+        if found:
+            return found
     img = meta(page, "og:image") or meta(page, "twitter:image")
     if not img:
+        found = add_many(page_images(page, final)[:12], final, title, platform_of(final))
+        if found:
+            return found
         raise ValueError("No preview image found on this page (it may need a login)")
-    title = meta(page, "og:title") or meta(page, "og:description")
     img = re.sub(r"i\.pinimg\.com/\d+x/", "i.pinimg.com/originals/", img)
     try:
         return [add_from_url(img, page_url=final, title=title)]
@@ -371,6 +470,90 @@ def add_arena_channel(url):
             return None
     with ThreadPoolExecutor(8) as pool:  # 이미지 여러 장을 동시에 받아요
         return [r for r in pool.map(one, [j for j in jobs if j[0]]) if r]
+
+
+# ---------- client words ----------
+# Words a client used for the look ("romantic", "고급스러운") that aren't in the fixed tag list.
+# The AI answers, per image, whether the image clearly looks like each word; answers are kept on
+# the item as words: {word: true/false}. A failed check is kept as words_error.
+def norm_word(w):
+    return re.sub(r"\s+", " ", str(w)).strip().lower()[:40]
+
+
+def words_prompt(words):
+    return ("You are checking a visual design reference against words a client used to describe the look they want.\n"
+            "For each word, answer true only if this image clearly looks like that word (its form, colour, light, "
+            "material, typography or mood), otherwise false.\n"
+            "Return ONLY a JSON object with each word exactly as given as a key and true or false as the value: "
+            + json.dumps({w: True for w in words}, ensure_ascii=False) + "\n")
+
+
+def ask_words(data, words):
+    st = settings()
+    small, mime = T.shrink(data, int(st["size"]))
+    b64 = base64.b64encode(small).decode()
+    last = "No model available. Add an API key in Settings."
+    for step in st["chain"]:
+        prov, model = step.get("provider"), step.get("model")
+        key = st["keys"].get(prov, "")
+        if prov != "mock" and not key:
+            continue
+        if prov == "mock":  # no key: a fixed fake answer, for trying the screens
+            return {w: int(hashlib.md5((b64[:4000] + w).encode()).hexdigest(), 16) % 3 == 0 for w in words}
+        try:
+            text, _, _ = T.call_model(prov, model, key, words_prompt(words), b64, mime)
+        except Exception as e:
+            last = str(e)[:200]
+            continue  # busy or gone: try the next model
+        ans = T.parse_json(text)
+        if isinstance(ans, dict):
+            low = {norm_word(k): v for k, v in ans.items()}
+            return {w: bool(low.get(w, False)) for w in words}
+        last = "The model didn't answer in JSON"
+    raise ValueError(last)
+
+
+def words_worker():
+    while True:
+        sid, words = WORDS_Q.get()
+        try:
+            with LOCK:
+                it = library()["items"].get(sid)
+            if not it:
+                continue
+            words = [w for w in words if w not in (it.get("words") or {})]
+            if not words:
+                continue
+            try:
+                ans, err = ask_words((IMG / it["file"]).read_bytes(), words), None
+            except Exception as e:
+                ans, err = {}, str(e)[:200]
+            with LOCK:
+                lib = library()
+                it = lib["items"].get(sid)
+                if it:
+                    it.setdefault("words", {}).update(ans)
+                    if err:
+                        it["words_error"] = err
+                    else:
+                        it.pop("words_error", None)
+                    save_library(lib)
+        except Exception as e:
+            STATUS["note"] = f"Error: {e}"
+
+
+def ask(ids, words):
+    """Queue a check of `words` on each item that doesn't have an answer yet. Returns how many were queued."""
+    words = [w for w in dict.fromkeys(norm_word(w) for w in words) if w][:8]
+    lib = library()["items"]
+    n = 0
+    for sid in ids:
+        it = lib.get(sid)
+        missing = [w for w in words if it and w not in (it.get("words") or {})]
+        if missing:
+            WORDS_Q.put((sid, missing))
+            n += 1
+    return n
 
 
 # ---------- tagging worker ----------
@@ -516,7 +699,7 @@ class H(BaseHTTPRequestHandler):
                 return self.send({"ok": True, "added": ok, "new": new, "failed": len(errs), "errors": errs[:5]})
             if p == "/api/add_link":
                 res = add_from_link(data["url"])
-                return self.send({"ok": True, "added": len(res), "new": sum(1 for _, n in res if n)})
+                return self.send({"ok": True, "added": len(res), "new": sum(1 for _, n in res if n), "ids": [it["id"] for it, _ in res]})
             if p == "/api/import_json":  # 인스타 수집 확장(v0.2)에서 내보낸 JSON
                 items = data.get("items", data)
                 items = list(items.values()) if isinstance(items, dict) else items
@@ -550,6 +733,8 @@ class H(BaseHTTPRequestHandler):
             if p == "/api/replace":  # 확장 프로그램: 게시물 원본 이미지로 교체
                 replace_image(data["id"], data["image_url"])
                 return self.send({"ok": True})
+            if p == "/api/ask":  # check client words on images: {ids, words}
+                return self.send({"ok": True, "queued": ask(data.get("ids") or [], data.get("words") or [])})
             if p == "/api/retag":
                 return self.send({"ok": True, "queued": requeue(ids=data.get("ids"), statuses=tuple(data.get("statuses", ["failed"])))})
             if p == "/api/item":
@@ -587,6 +772,7 @@ def main():
         threading.Thread(target=tag_worker, daemon=True).start()
     requeue(statuses=("queued",))
     threading.Thread(target=backfill_colors, daemon=True).start()
+    threading.Thread(target=words_worker, daemon=True).start()
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), H)
     url = f"http://localhost:{a.port}"
     print(f"Axia 실행 중 → {url}\n보관 위치: {DATA}\n이 창을 닫으면 Axia가 꺼져요 (Chrome 확장 '보내기'도 이 창이 켜져 있어야 돼요)")
