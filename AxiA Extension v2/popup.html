@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 320px; margin: 0; padding: 14px; font: 13px/1.45 -apple-system, "Pretendard", "Malgun Gothic", sans-serif; color: #f4f4f4; background: #0b0b0c; }
+  header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  header b { font-size: 15px; }
+  .st { font-size: 12px; padding: 6px 9px; border-radius: 7px; margin-bottom: 10px; background: #1b2a20; color: #7fd1a0; }
+  .st.bad { background: #2f1a1a; color: #ff8a80; }
+  label { display: grid; gap: 4px; font-size: 12px; color: #aaa; margin-bottom: 10px; }
+  select, button { font: inherit; color: inherit; background: #1c1c1e; border: 1px solid #333; border-radius: 8px; padding: 8px 10px; }
+  button { width: 100%; cursor: pointer; margin-bottom: 6px; text-align: left; }
+  button.primary { background: #fff; color: #000; border-color: #fff; }
+  button:disabled { opacity: .35; cursor: default; }
+  h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #888; margin: 14px 0 8px; font-weight: 500; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  li { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; }
+  li img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: #222; }
+  li small { display: block; color: #888; }
+  li .tags { font-size: 11px; color: #ddd; }
+  p { color: #888; font-size: 12px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+  <header><svg viewBox="0 0 1000 1000" width="22" height="22" aria-hidden="true"><rect width="1000" height="1000" rx="120" fill="#000"/><path transform="translate(150 313.6) scale(0.7)" fill="#fff" d="M1000,19.7V5c0-3.6-3.7-6-7-4.6l-484.8,217.3c-5.2,2.3-11.2,2.3-16.4,0L7,.4C3.7-1,0,1.4,0,5v49.6C0,59.7,2,64.7,5.5,68.4l253.1,265.1c4.4,4.6,3.4,12.1-2,15.4L4.7,504.5C1.8,506.3,0,509.6,0,513v14.7c0,3.6,3.7,6,7,4.6l484.8-217.3c5.2-2.3,11.2-2.3,16.4,0l484.8,217.3c3.3,1.5,7-.9,7-4.6v-49.6c0-5.1-2-10.1-5.5-13.8l-253.1-265.1c-4.4-4.6-3.4-12.1,2-15.4L995.3,28.2c2.9-1.8,4.7-5,4.7-8.5Z"/></svg><b>AxiA</b></header>
+  <div id="st" class="st">확인 중…</div>
+  <label>보낼 곳 (우클릭 메뉴의 ★)<select id="target"></select></label>
+  <button id="pick" class="primary">이 페이지 이미지 여러 장 고르기</button>
+  <button id="board" hidden>이 Pinterest 보드 전체 보내기</button>
+  <button id="spec">스펙 시트 열기</button>
+  <button id="open">AxiA 열기</button>
+  <h2>최근 보낸 이미지</h2>
+  <ul id="recent"><p>아직 없어요. 이미지 위에서 <b>우클릭 → AxiA로 보내기</b>.</p></ul>
+  <p>Are.na · Cosmos · Behance · Dribbble · 포트폴리오 사이트는 “여러 장 고르기”로, 인스타그램·핀터레스트는 우클릭으로 보내요.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
