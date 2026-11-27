@@ -1,0 +1,111 @@
+/* App frame, after Figma's file browser: a fixed sidebar and the page beside it. Same dark mood. */
+:root { --sidebar: 232px; --bar-h: 64px; }
+
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; z-index: 30; width: var(--sidebar);
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 10px 12px;
+  background: #111113; border-right: 1px solid var(--line); overflow-y: auto;
+}
+.side-logo { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-bottom: 8px; color: var(--black); text-decoration: none; }
+.side-logo svg { display: block; width: auto; }
+.side-search {
+  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; margin-bottom: 10px;
+  border-radius: 8px; background: var(--hi); color: var(--muted);
+}
+.side-search:focus-within { box-shadow: 0 0 0 2px var(--focus); }
+.side-search input { flex: 1; min-width: 0; border: 0; padding: 0; background: none; outline: none; font-size: 13px; color: var(--black); }
+.side-search input::placeholder { color: var(--muted); }
+.side-search kbd { font: 11px var(--font); color: var(--muted); opacity: 0.7; }
+.side-nav, .side-section, .side-bottom { display: grid; gap: 1px; }
+.side-item {
+  display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px;
+  background: none; color: var(--muted); font-size: 13px; text-align: left; text-decoration: none; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.side-item svg { flex: none; }
+.side-item:hover { background: var(--hi); color: var(--black); }
+.side-item[aria-current="page"] { background: var(--hi-strong); color: var(--black); }
+.side-item.small { height: 28px; font-size: 12.5px; display: block; line-height: 28px; }
+.side-dot { display: inline-block; width: 6px; height: 6px; margin: 0 12px 1px 5px; border-radius: 50%; background: var(--muted); opacity: 0.6; vertical-align: middle; }
+.side-section { margin-top: 18px; }
+.side-head { padding: 0 8px 6px; font-size: 11px; color: var(--muted); }
+.side-bottom { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* The page beside the sidebar */
+main.page { margin-left: var(--sidebar); max-width: none; padding: 0 32px 72px; min-height: 100vh; }
+main.bare { max-width: none; padding: 24px var(--margin); }
+.page > section { max-width: 1280px; }
+
+/* Page bar: title left, actions right, stays on top while scrolling */
+.page-bar {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: var(--bar-h); margin: 0 -32px 24px; padding: 12px 32px;
+  background: rgba(11, 11, 12, 0.86); border-bottom: 1px solid var(--line);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+}
+.page-bar h1 { margin: 0; font-size: 18px; }
+.page-bar-title { min-width: 0; }
+.page-bar-title p { margin: 2px 0 0; color: var(--muted); font-size: 13px; max-width: 720px; }
+.page-bar-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.btn.primary { border-radius: 8px; }
+.btn.outline { border-radius: 8px; padding: 0 12px; box-shadow: inset 0 0 0 1px var(--line); color: var(--black); }
+.btn.outline:hover { background: var(--hi); }
+.btn.icon { width: 30px; padding: 0; }
+
+/* Map fills the space beside the sidebar */
+.stage { left: var(--sidebar); }
+.side { top: var(--margin); }
+.map-grid { padding-top: var(--margin); }
+
+/* Sheet (feedback, new project): centred card over a dim page */
+.sheet-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, 0.6); }
+.sheet {
+  width: min(560px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; padding: 20px 22px 22px;
+  border-radius: 14px; background: #18181a; box-shadow: inset 0 0 0 1px var(--line), 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+.sheet-head { display: flex; align-items: center; gap: 4px; margin-bottom: 16px; }
+.sheet-head h2 { flex: 1; margin: 0; font-size: 16px; }
+.feedback-form { display: grid; gap: 16px; }
+.feedback-form .fields.two { grid-template-columns: 1fr 1fr; }
+.feedback-form textarea, .feedback-form select {
+  width: 100%; padding: 8px 12px; border: 0; border-radius: 8px; background: var(--hi); color: var(--black);
+  font: inherit; font-size: 13px; outline: none; box-shadow: var(--glass-edge); resize: vertical;
+}
+.feedback-form select { height: 34px; padding: 0 10px; }
+.feedback-form .row { display: flex; align-items: center; gap: 12px; }
+.feedback-thanks { padding: 24px 0; color: var(--muted); font-size: 15px; }
+
+/* Projects: cards like Figma's files: a big preview, then name and status */
+.project-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+.project-card { border-radius: 10px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.project-card:hover { background: none; }
+.project-card .cover { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow 0.15s; }
+.project-card:hover .cover { box-shadow: 0 0 0 2px var(--focus); }
+.project-card .card-text { padding: 10px 2px 0; }
+.project-card .card-text h2 { font-size: 13px; margin: 0 0 2px; }
+.project-card .card-text p { font-size: 12px; }
+.new-card { display: grid; place-items: center; gap: 6px; aspect-ratio: 16 / 10; width: 100%; border: 1px dashed var(--line); border-radius: 10px; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+.new-card:hover { color: var(--black); border-color: var(--muted); }
+.new-project-form { display: grid; gap: 14px; }
+.new-project-form .fields { grid-template-columns: 1fr; }
+
+/* Phones: the sidebar becomes a bar on top */
+@media (max-width: 760px) {
+  :root { --sidebar: 0px; }
+  .sidebar { inset: 0 0 auto 0; width: auto; height: 52px; flex-direction: row; align-items: center; padding: 0 8px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .side-logo { margin: 0; } .side-logo svg + svg { display: none; }
+  .side-search, .side-section, .side-head, .side-bottom .side-item:not(:first-child) { display: none; }
+  .side-nav, .side-bottom { display: flex; margin: 0; padding: 0; border: 0; }
+  .side-bottom { margin-left: auto; }
+  main.page { margin-left: 0; padding: 52px 16px 64px; }
+  .page-bar { top: 52px; margin: 0 -16px 16px; padding: 10px 16px; }
+  .stage { top: 52px; }
+  .feedback-form .fields.two { grid-template-columns: 1fr; }
+}
+.lib-search { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--hi); color: var(--black); font-size: 13px; outline: none; box-shadow: var(--glass-edge); }
+.feedback-form { padding: 0; background: none; box-shadow: none; }
+/* Pages without a page bar start a little below the top */
+.page > .project, .page > .how, .page > .lab, .page > .agreed, .page > .agreed-wrap { padding-top: 28px; }
+/* Ratings: question on the left, the 1–5 scale lined up on the right */
+.rating { display: grid; grid-template-columns: 1fr auto; }
+@media (max-width: 560px) { .rating { grid-template-columns: 1fr; } }

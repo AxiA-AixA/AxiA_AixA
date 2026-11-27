@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PageHeader from "../../shell/PageHeader";
 
 // The feedback in one place: averages, then every answer. "Copy for Google Sheets" copies the rows
 // (tab-separated, same columns as the sheet's feedback tabs) to paste under the last row there.
@@ -33,11 +34,8 @@ export default function Summary() {
   }
 
   return (
-    <section className="feedback wide">
-      <header className="page-head">
-        <h1>Feedback summary</h1>
-        <p>Designers answer at <a href="/feedback">/feedback</a>; clients answer after sending a brief. Copy the rows into the “피드백 디자이너” and “피드백 클라이언트” tabs of the axia-tech-validation sheet.</p>
-      </header>
+    <section className="feedback">
+      <PageHeader title="Feedback" sub="Designers answer from the sidebar (or the /feedback link); clients answer after sending a brief. Copy the rows into the “피드백 디자이너” and “피드백 클라이언트” tabs of the axia-tech-validation sheet." />
       {["designer", "client"].map((kind) => {
         const list = all.filter((e) => e.kind === kind).sort((a, b) => b.at.localeCompare(a.at));
         return (

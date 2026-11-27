@@ -1,10 +1,10 @@
 /* Library page and the shared reference grid (also the map's grid view) */
-.library { max-width: 1280px; margin: 0 auto; padding: 96px 32px 80px; display: grid; gap: 16px; }
+.library { display: grid; gap: 16px; }
 .lib-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
 .lib-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .lib-search { flex: 1 1 280px; }
 .lib-msg { margin: 0; }
-.bulk-bar { position: sticky; top: 72px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; }
+.bulk-bar { position: sticky; top: calc(var(--bar-h) + 8px); z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; }
 .bulk-bar form { display: flex; gap: 8px; flex: 1 1 320px; }
 .bulk-bar form input { flex: 1; }
 
@@ -31,7 +31,6 @@
 .lib-detail img { width: 100%; max-height: calc(100vh - 100px); object-fit: contain; border-radius: 10px; }
 .lib-detail > div { display: grid; gap: 10px; align-content: start; }
 @media (max-width: 640px) {
-  .library { padding: 80px 16px 64px; }
   .lib-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .lib-check { opacity: 1; }
   .lib-detail { grid-template-columns: 1fr; }
@@ -43,9 +42,8 @@
 .view-toggle { margin-top: 8px; }
 
 /* Feedback */
-.feedback { max-width: 720px; margin: 0 auto; padding: 96px 32px 80px; display: grid; gap: 16px; }
-.feedback.wide { max-width: 1280px; }
-.feedback-form { display: grid; gap: 18px; padding: 20px; border-radius: 14px; }
+.feedback { display: grid; gap: 16px; }
+.feedback > .feedback-form { max-width: 640px; }
 .feedback-form label { display: grid; gap: 6px; font-size: 13px; }
 .feedback-form textarea, .feedback-form select { font: inherit; }
 .feedback-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }

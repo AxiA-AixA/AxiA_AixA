@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cardStage, plural } from "@/lib/status";
+import PageHeader from "./shell/PageHeader";
+import { PlusIcon } from "./shell/icons";
 
 // Home: the designer's projects. Each one turns its references into a visual spec for one client.
 export default function Projects() {
@@ -13,6 +15,7 @@ export default function Projects() {
   const [form, setForm] = useState({ name: "", client: "", word: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetch("/api/projects").then((r) => r.json()).then(setList).catch(() => setList([]));
@@ -35,32 +38,34 @@ export default function Projects() {
 
   return (
     <section className="projects">
-      <header className="page-head">
-        <h1>Projects</h1>
-        <p>Each project turns your references into one visual spec. Share it with your client, agree on the look point by point, and keep the agreed brief before the first draft.</p>
-      </header>
+      <PageHeader title="Projects" sub="Each project turns your references into one visual spec you and your client agree on.">
+        <button className="btn primary" onClick={() => setCreating(true)}><PlusIcon />New project</button>
+      </PageHeader>
 
       {!lib.online && (
         <p className="notice glass">The AI analyser (axia-prototype) is off, so references and images can’t load. Open <code>Axia-실행-Mac.command</code> (Windows: <code>Axia-실행-Windows.bat</code>) in the axia-prototype folder, then refresh.</p>
       )}
 
-      <form className="new-project glass" onSubmit={create}>
-        <h2>New project</h2>
-        <div className="fields">
-          <label>Project<input value={form.name} onChange={set("name")} placeholder="Spring campaign" autoFocus /></label>
-          <label>Client<input value={form.client} onChange={set("client")} placeholder="Studio or brand name" /></label>
-          <label>Client’s words for the look<input value={form.word} onChange={set("word")} placeholder="e.g. minimal, premium" /></label>
+      {creating && (
+        <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="New project" onMouseDown={(e) => e.target === e.currentTarget && setCreating(false)}>
+          <form className="sheet new-project-form" onSubmit={create} onKeyDown={(e) => e.key === "Escape" && setCreating(false)}>
+            <div className="sheet-head"><h2>New project</h2><button type="button" className="btn icon" onClick={() => setCreating(false)} aria-label="Close">✕</button></div>
+            <div className="fields">
+              <label>Project<input value={form.name} onChange={set("name")} placeholder="Spring campaign" autoFocus /></label>
+              <label>Client<input value={form.client} onChange={set("client")} placeholder="Studio or brand name" /></label>
+              <label>Client’s words for the look<input value={form.word} onChange={set("word")} placeholder="e.g. minimal, premium, romantic" /></label>
+            </div>
+            <div className="row">
+              <button className="btn primary" disabled={busy}>{busy ? "Creating…" : "Create project"}</button>
+              {error && <span className="error">{error}</span>}
+            </div>
+          </form>
         </div>
-        <div className="row">
-          <button className="btn primary" disabled={busy}>{busy ? "Creating…" : "Create project"}</button>
-          {error && <span className="error">{error}</span>}
-        </div>
-      </form>
+      )}
 
-      {list === null ? <p className="muted">Loading…</p> : list.length === 0 ? (
-        <p className="muted">No projects yet. Create one above, then pick the references that show the look.</p>
-      ) : (
+      {list === null ? <p className="muted">Loading…</p> : (
         <ul className="project-grid">
+          <li><button className="new-card" onClick={() => setCreating(true)}><PlusIcon />New project</button></li>
           {list.map((p) => (
             <li key={p.id}>
               <Link href={`/project/${p.id}`} className="project-card glass">
