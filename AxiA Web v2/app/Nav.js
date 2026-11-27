@@ -19,6 +19,7 @@ export default function Nav() {
         <NavLink href="/" className="btn" current={path === "/" || path.startsWith("/project/")}>Projects</NavLink>
         <NavLink href="/library" className="btn">Library</NavLink>
         <NavLink href="/how" className="btn">About</NavLink>
+        <NavLink href="/feedback" className="btn" current={path.startsWith("/feedback")}>Feedback</NavLink>
       </div>
     </nav>
   );

@@ -2,6 +2,7 @@ import Nav from "./Nav";
 import "./globals.css";
 import "./brand.css";
 import "./flow.css";
+import "./library.css";
 
 export const metadata = {
   title: "AxiA",

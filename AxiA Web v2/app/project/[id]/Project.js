@@ -10,10 +10,10 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { buildSpec, checkWords, latestVotes, summarise } from "@/lib/spec";
+import { buildSpec, checkWords, clientWords, latestVotes, summarise } from "@/lib/spec";
 import { changedSinceShare, nextAction, projectSteps, tallyVotes } from "@/lib/status";
 import { usePolling, useProject } from "./useProject";
-import { useAddReferences } from "./useAddReferences";
+import { useAddReferences } from "../../shared/useAddReferences";
 import RefsPanel, { isAnalysing } from "./RefsPanel";
 import SpecPanel from "./SpecPanel";
 import ClientPanel from "./ClientPanel";
@@ -35,8 +35,8 @@ export default function Project({ id }) {
   const [shareMsg, setShareMsg] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const adder = useAddReferences(id, {
-    onRefs: (refs) => setProject((cur) => ({ ...cur, refs })), before: flush, after: reloadLib, linkInput,
+  const adder = useAddReferences(`/api/projects/${id}/add`, {
+    onResult: (d) => d.refs && setProject((cur) => ({ ...cur, refs: d.refs })), before: flush, after: reloadLib, linkInput,
   });
 
   // ---------- derived ----------
@@ -44,9 +44,11 @@ export default function Project({ id }) {
   const allRefs = useMemo(() => (p ? p.refs.map((r) => byId.get(r)).filter(Boolean) : []), [p, byId]);
   const refs = useMemo(() => allRefs.filter((r) => r.status === "tagged"), [allRefs]); // the spec reads analysed images only
   const busy = allRefs.filter(isAnalysing).length;
-  usePolling(reloadLib, ANALYSING_POLL_MS, busy > 0 || adder.uploading > 0);
+  // The client's own words (not fixed tags) are checked by the AI on each reference; wait for the answers.
+  const wordsPending = clientWords(p?.word).some((w) => refs.some((r) => !(w in r.words) && !r.wordsError));
+  usePolling(reloadLib, ANALYSING_POLL_MS, busy > 0 || adder.uploading > 0 || wordsPending);
 
-  const spec = useMemo(() => (p ? buildSpec(refs, p.edits, p.custom) : []), [p, refs]);
+  const spec = useMemo(() => (p ? buildSpec(refs, p.edits, p.custom, p.word) : []), [p, refs]);
   const votes = useMemo(() => latestVotes(p?.responses), [p]);
   const fileToRef = useMemo(() => new Map(allRefs.map((r) => [r.file, r])), [allRefs]);
   const words = useMemo(() => (p?.word && refs.length >= 3 ? checkWords(p.word, refs) : []), [p?.word, refs]);

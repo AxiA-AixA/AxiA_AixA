@@ -57,7 +57,8 @@ export default function SpecPanel({ project, spec, refs, busy, words, summary, v
   );
 }
 
-// Does what the client said show in the references?
+// Does what the client said show in the references? Words that aren't fixed tags are checked by the
+// AI on each reference; those that show become points under "Client's words".
 function WordCheck({ words }) {
   if (!words.length) return null;
   const pct = (share) => `${Math.round(share * 100)}%`;
@@ -68,10 +69,24 @@ function WordCheck({ words }) {
         {words.map((w) => (
           <li key={w.word} className={w.verdict}>
             <b>“{w.word}”</b>
-            {w.verdict === "shows" && <span>shows in the references: {w.tags.filter((t) => t.share >= SHARE).map((t) => `${t.tag} ${pct(t.share)}`).join(", ")}</span>}
-            {w.verdict === "faint" && <span>only faintly: {w.tags[0].tag} in {pct(w.tags[0].share)}. Ask what they mean, or add references that look {w.word}.</span>}
-            {w.verdict === "missing" && <span>doesn’t show in these references. Check with your client before you share.</span>}
-            {w.verdict === "unknown" && <span className="muted">AxiA doesn’t know this word yet. The points below come from the references only.</span>}
+            {w.ai ? (
+              <>
+                {w.verdict === "shows" && <span>{pct(w.share)} of the references look {w.word}, checked by AI on each one. It’s a point below.</span>}
+                {w.verdict === "faint" && <span>only {pct(w.share)} of the references look {w.word} (checked by AI). Ask what they mean, or add references that do.</span>}
+                {w.verdict === "missing" && <span>none of these references look {w.word} (checked by AI). Check with your client before you share.</span>}
+                {w.verdict === "checking" && <span className="muted">not one of AxiA’s tags, so the AI is checking each reference for it… {w.checked} of {w.total} done</span>}
+              </>
+            ) : (
+              <>
+                {w.verdict === "shows" && <span>shows in the references: {w.tags.filter((t) => t.share >= SHARE).map((t) => `${t.tag} ${pct(t.share)}`).join(", ")}</span>}
+                {w.verdict === "faint" && <span>only faintly: {w.tags[0].tag} in {pct(w.tags[0].share)}. Ask what they mean, or add references that look {w.word}.</span>}
+                {w.verdict === "missing" && <span>doesn’t show in these references. Check with your client before you share.</span>}
+                {w.verdict === "checking" && <span className="muted">not one of AxiA’s tags, so the AI is checking each reference for it…</span>}
+                {w.verdict === "unchecked" && <span className="muted">not one of AxiA’s tags, and the AI couldn’t check it ({w.error}). Add an API key in Library → Analyser settings.</span>}
+                {w.verdict === "unknown" && <span className="muted">AxiA will check this word once there are references.</span>}
+                {w.checking && w.verdict !== "checking" && <span className="muted"> · the AI is also checking each reference…</span>}
+              </>
+            )}
           </li>
         ))}
       </ul>

@@ -20,6 +20,8 @@ import { fetchLibrary } from "@/lib/client/library";
 import { camMoved, fitStep, toScreen } from "./graph/camera";
 import { drawMap } from "./graph/draw";
 import { attachInput } from "./graph/input";
+import RefGrid from "./shared/RefGrid";
+import { changeTags, isShowcase, SHOWCASE_TAG } from "./shared/tags";
 
 // Display settings. The sliders are a design tool: they show only with ?tune in the address.
 const TUNING = [
@@ -57,7 +59,10 @@ export default function Graph() {
   const [tune, setTune] = useState(DEFAULTS);
   const [showTuning, setShowTuning] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [view, setView] = useState({ by: "Color", sel: [], auto: false, proj: null }); // what is shown
+  // What is shown. showcase: only the references tagged "AxiA symbol" (the first screen);
+  // proj: one project's references; sel: searched terms; mode: "map" or "grid".
+  const [view, setView] = useState({ by: "Color", sel: [], auto: false, proj: null, showcase: false, mode: "map" });
+  const [shownEntries, setShownEntries] = useState([]); // for the grid view
   const [terms, setTerms] = useState([]);        // [[term, count]] among shown images
   const [hits, setHits] = useState(0);
   const [query, setQuery] = useState("");
@@ -91,7 +96,7 @@ export default function Graph() {
   function rebuild(heat = 1, v = viewRef.current) {
     const s = g.current;
     const proj = v.proj?.refs;
-    const items = [...s.byId.values()].filter((n) => passes(n.entry, v.sel) && (!proj || proj.includes(n.id)));
+    const items = [...s.byId.values()].filter((n) => passes(n.entry, v.sel) && (!proj || proj.includes(n.id)) && (!v.showcase || isShowcase(n.entry)));
     s.nodes = [...items];
     s.hubs.clear();
     for (const n of items) {
@@ -102,8 +107,11 @@ export default function Graph() {
     s.userCam = false;
     s.dirty = true;
     s.heat = Math.max(s.heat, heat);
-    setTerms(countTerms(items.map((n) => n.entry), v.sel)); // so each pick narrows the result
+    // Terms of the shown images only, so each pick narrows the result (and the first screen
+    // offers only the symbol references' own tags).
+    setTerms(countTerms(items.map((n) => n.entry), v.showcase ? [...v.sel, SHOWCASE_TAG] : v.sel));
     setHits(items.length);
+    setShownEntries(items.map((n) => n.entry));
   }
 
   function changeView(patch) {
@@ -155,8 +163,8 @@ export default function Graph() {
     setShowTuning(new URLSearchParams(location.search).has("tune"));
     if (matchMedia("(max-width: 640px)").matches) { setPanelOpen(false); panelWas.current = false; } // phones: keep the map visible
     const saved = readJSON(sessionStorage, FILTERS);
-    if (saved && GROUP_BY[saved.by] && Array.isArray(saved.sel)) { viewRef.current = saved; setView(saved); }
-    else openLastProject();
+    const fresh = !(saved && GROUP_BY[saved.by] && Array.isArray(saved.sel));
+    if (!fresh) { viewRef.current = { ...viewRef.current, ...saved }; setView(viewRef.current); }
 
     if (s.byId.size) { // back from another page: the kept layout as it was
       const userCam = s.userCam;
@@ -165,9 +173,20 @@ export default function Graph() {
       s.userCam = userCam;
       setZoom(s.cam.k); setCount(s.byId.size);
     }
+    // First open in this tab: the AxiA symbol references if any are tagged, else the last project.
+    let first = fresh;
     const load = () => fetchLibrary(s.etag)
-      .then((d) => { if (!d) return; s.etag = d.etag; setOnline(d.online); merge(d.items); })
+      .then((d) => {
+        if (!d) return;
+        s.etag = d.etag; setOnline(d.online); merge(d.items);
+        if (first && d.online) {
+          first = false;
+          if (d.items.some(isShowcase)) changeView({ showcase: true });
+          else openLastProject();
+        }
+      })
       .catch(() => setOnline(false));
+    loadRef.current = () => { s.etag = null; load(); };
     load();
     const t = setInterval(load, POLL_MS);
     return () => { clearInterval(t); kept = s; };
@@ -205,6 +224,12 @@ export default function Graph() {
     setDetail(null); g.current.userCam = false;
   }
   const openRef = useRef(openDetail); openRef.current = openDetail;
+  const loadRef = useRef(() => {});
+  // Grid view: hand-made tags can be added and removed on each card.
+  async function tagEntry(e, change) {
+    try { await changeTags([e.id], change); } catch {}
+    loadRef.current();
+  }
   const closeRef = useRef(closeDetail); closeRef.current = closeDetail;
 
   // ---------- canvas loop: layout, camera, draw only when something changed ----------
@@ -222,6 +247,7 @@ export default function Graph() {
 
     let raf;
     const frame = () => {
+      if (viewRef.current.mode === "grid") { raf = requestAnimationFrame(frame); return; } // the map is hidden
       const start = performance.now(), settings = { spread: tuneRef.current.spread, hubGap };
       let moving = step(s, settings);
       while (moving && !s.dragged && performance.now() - start < LAYOUT_MS) step(s, settings);
@@ -272,12 +298,18 @@ export default function Graph() {
 
   return (
     <div className="stage">
-      <canvas ref={canvasRef} className="graph" />
+      <canvas ref={canvasRef} className="graph" style={view.mode === "grid" ? { display: "none" } : undefined} />
+      {view.mode === "grid" && (
+        <div className="map-grid">
+          <RefGrid items={shownEntries} onOpen={openDetail} onTags={tagEntry} terms={terms}
+            empty="No references match. Remove a filter to see more." />
+        </div>
+      )}
       <div className="side">
         <div className="tag-search glass">
           <p className="tag-status">
             {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : view.sel.length || view.proj ? `${hits} of ${count} references` : `${count} references · ${terms.length} terms`}
+              : view.sel.length || view.proj || view.showcase ? `${hits} of ${count} references · ${terms.length} tags` : `${count} references · ${terms.length} terms`}
           </p>
           <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTerm(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -305,8 +337,12 @@ export default function Graph() {
               </ul>
             )}
           </form>
-          {(view.sel.length > 0 || view.proj) && (
+          {(view.sel.length > 0 || view.proj || view.showcase) && (
             <div className="tag-chips">
+              {view.showcase && (
+                <button type="button" className="chip on" aria-label="Show all references, not only the AxiA symbol references" title="Show all references"
+                  onClick={() => changeView({ showcase: false })}>AxiA symbol references<span className="chip-x" aria-hidden="true">×</span></button>
+              )}
               {view.proj && (
                 <button type="button" className="chip on" aria-label={`Show all references, not only ${view.proj.name}`} title="Show all references"
                   onClick={() => changeView({ proj: null })}>Project: {view.proj.name}<span className="chip-x" aria-hidden="true">×</span></button>
@@ -318,6 +354,10 @@ export default function Graph() {
               {view.sel.length > 1 && <button type="button" className="btn" onClick={() => setSelected([])}>Clear all</button>}
             </div>
           )}
+          <div className="segmented view-toggle" role="group" aria-label="View">
+            <button type="button" aria-pressed={view.mode !== "grid"} onClick={() => changeView({ mode: "map" })}>Map</button>
+            <button type="button" aria-pressed={view.mode === "grid"} onClick={() => changeView({ mode: "grid" })}>Grid {hits ? `· ${hits}` : ""}</button>
+          </div>
         </div>
 
         {detail && (
