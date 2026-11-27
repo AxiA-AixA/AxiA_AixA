@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { imgUrl } from "@/lib/axia";
 import { VOTES } from "@/lib/spec";
 import { AxiaLogotype, AxiaSymbol } from "../../Brand";
+import Rating from "../../shared/Rating";
 
 // The client's page: the shared spec, one point at a time. No sign-up. They agree, say they're
 // not sure, or disagree, with an optional comment, then send. They can change answers and send again.
@@ -101,6 +102,28 @@ export default function Brief({ token }) {
           </p>
         </div>
       </form>
+      {state === "sent" && <ClientFeedback token={token} name={name} />}
     </section>
+  );
+}
+
+// After sending: two quick questions about the brief itself, for the AxiA team (optional).
+function ClientFeedback({ token, name }) {
+  const [f, setF] = useState({ clear: null, quick: null, comment: "" });
+  const [done, setDone] = useState(false);
+  if (done) return <p className="muted client-feedback glass">Thanks, that helps us make briefs clearer.</p>;
+  async function send(e) {
+    e.preventDefault();
+    await fetch("/api/feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "client", token, name, ...f }) }).catch(() => {});
+    setDone(true);
+  }
+  return (
+    <form className="client-feedback glass" onSubmit={send}>
+      <h3>One last thing (optional): how was this brief?</h3>
+      <Rating label="It was clear what I was agreeing to" value={f.clear} onChange={(v) => setF({ ...f, clear: v })} />
+      <Rating label="Answering was quick" value={f.quick} onChange={(v) => setF({ ...f, quick: v })} />
+      <input className="note" value={f.comment} onChange={(e) => setF({ ...f, comment: e.target.value })} placeholder="Anything that would make it better?" />
+      <button className="btn" disabled={!f.clear && !f.quick && !f.comment.trim()}>Send to the AxiA team</button>
+    </form>
   );
 }
