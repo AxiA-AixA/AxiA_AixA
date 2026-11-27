@@ -1,5 +1,5 @@
 // axia-prototype (python3 app.py) does the AI analysis and keeps the library.
-// AxiA Web v2 reads that library and adds to it (files, links) on a project's behalf.
+// AxiA Web v1.4 reads that library and adds to it (files, links) on a project's behalf.
 export const AXIA = "http://127.0.0.1:8770";
 
 // Designer pages run on the same computer as the analyser, so they load images from it directly
