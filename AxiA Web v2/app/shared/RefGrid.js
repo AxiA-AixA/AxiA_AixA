@@ -43,7 +43,7 @@ function Card({ e, onOpen, picked, onSelect, onTags }) {
   return (
     <li className={`lib-card${picked ? " picked" : ""}`}>
       <button className="lib-img" onClick={() => onOpen?.(e)} title={e.title || "Open"}>
-        <img src={e.thumb} alt={e.title || ""} loading="lazy" />
+        <img src={e.thumb} alt="" loading="lazy" />
         {state && <span className="ref-state">{state}</span>}
       </button>
       {onSelect && (

@@ -3,6 +3,10 @@
 // a dot is still growing or shrinking, so the loop keeps drawing).
 import { sizeOf } from "@/lib/graph/thumbs";
 
+// The AxiA symbol (viewBox 1000 × 532.7), drawn at the centre of the map.
+const SYMBOL_PATH = "M1000,19.7V5c0-3.6-3.7-6-7-4.6l-484.8,217.3c-5.2,2.3-11.2,2.3-16.4,0L7,.4C3.7-1,0,1.4,0,5v49.6C0,59.7,2,64.7,5.5,68.4l253.1,265.1c4.4,4.6,3.4,12.1-2,15.4L4.7,504.5C1.8,506.3,0,509.6,0,513v14.7c0,3.6,3.7,6,7,4.6l484.8-217.3c5.2-2.3,11.2-2.3,16.4,0l484.8,217.3c3.3,1.5,7-.9,7-4.6v-49.6c0-5.1-2-10.1-5.5-13.8l-253.1-265.1c-4.4-4.6-3.4-12.1,2-15.4L995.3,28.2c2.9-1.8,4.7-5,4.7-8.5Z";
+let SYMBOL = null; // Path2D, made on first draw (it only exists in the browser)
+
 // view: { canvas, s, t (display settings), color(cssVar), picked (open node), hubR(hub), hubAt(point), pos(node) }
 export function drawMap(ctx, view) {
   const { canvas, s, t, color, picked, hubR, hubAt, pos } = view;
@@ -16,13 +20,18 @@ export function drawMap(ctx, view) {
   const edges = (list) => {
     ctx.beginPath();
     for (const n of list) for (const p of n.parents ?? []) {
-      const a = pos(n), b = pos(p);
+      const a = pos(n);
+      let b = pos(p);
+      if (p.symbol) { // stop short of the symbol so lines don't cross it
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1, cut = Math.min(d, hubR(p) * 0.62);
+        b = { x: b.x + ((a.x - b.x) / d) * cut, y: b.y + ((a.y - b.y) / d) * cut };
+      }
       ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
     }
     ctx.stroke();
   };
   ctx.lineWidth = 1;
-  ctx.strokeStyle = color("--edge");
+  ctx.strokeStyle = color(s.nodes.length < 60 ? "--line" : "--edge"); // few lines: a little brighter
   edges(s.nodes);
   ctx.strokeStyle = color("--black");
   const items = s.nodes.filter((n) => !n.hub);
@@ -47,8 +56,7 @@ function findHover(items, mouse, overHub, pos) {
 }
 
 // A dot is its thumbnail: it grows near the cursor (a fisheye lens) and, once its radius passes
-// showAt, the image fades in. Small it is a circle; as it grows toward hover size it relaxes into
-// a rounded square.
+// showAt, the image fades in, as a rounded square.
 function drawDots(ctx, items, { s, t, color, picked, pos, w, h }) {
   const k = s.cam.k;
   const lensOf = (n) => {
@@ -77,8 +85,7 @@ function drawDots(ctx, items, { s, t, color, picked, pos, w, h }) {
     ctx.globalAlpha = 1;
 
     const show = n.img ? Math.min(1, Math.max(0, (r - t.showAt) / 4)) : 0; // 4 px fade-in
-    const square = show > 0 ? Math.min(1, Math.max(0, (r - t.showAt) / Math.max(1, t.hover - t.showAt))) : 0;
-    const corner = r + (Math.min(t.corner, r) - r) * square;
+    const corner = Math.min(t.corner, r * 0.3); // always a rounded square
     if (show > 0) {
       ctx.save();
       ctx.globalAlpha = show;
@@ -104,6 +111,7 @@ function drawHubs(ctx, hubs, { color, hubR, pos }) {
   ctx.fillStyle = color("--black");
   for (const n of hubs) {
     const p = pos(n), r = hubR(n), img = n.rep?.img;
+    if (n.symbol) { drawSymbol(ctx, p, r, color); continue; }
     if (!img) { ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill(); continue; }
     ctx.save();
     ctx.shadowColor = "rgba(0, 0, 0, 0.18)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
@@ -119,6 +127,7 @@ function drawHubs(ctx, hubs, { color, hubR, pos }) {
   ctx.textAlign = "center";
   ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.strokeStyle = color("--white");
   for (const n of hubs) {
+    if (n.symbol) continue;
     const p = pos(n), y = p.y - hubR(n) - 8;
     ctx.strokeText(n.id, p.x, y); ctx.fillText(n.id, p.x, y);
   }
@@ -145,4 +154,15 @@ function drawHoverLabel(ctx, { s, t, color, pos }) {
 function drawCover(ctx, img, x, y, size) {
   const { w, h } = sizeOf(img), side = Math.min(w, h);
   ctx.drawImage(img, (w - side) / 2, (h - side) / 2, side, side, x, y, size, size);
+}
+
+// The centre: the AxiA symbol on its own, r = half its width.
+function drawSymbol(ctx, p, r, color) {
+  const k = (r * 2) / 1000;
+  SYMBOL ??= new Path2D(SYMBOL_PATH);
+  ctx.save();
+  ctx.translate(p.x - 500 * k, p.y - 266.35 * k); ctx.scale(k, k);
+  ctx.shadowColor = "rgba(255, 255, 255, 0.18)"; ctx.shadowBlur = 30;
+  ctx.fillStyle = color("--black"); ctx.fill(SYMBOL);
+  ctx.restore();
 }

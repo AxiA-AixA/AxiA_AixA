@@ -17,3 +17,16 @@ export function withUserTags(e, userTags) {
   const ai = e.tags.filter((t) => !old.has(t.toLowerCase()));
   return { ...e, userTags, tags: [...new Set([...userTags, ...ai])] };
 }
+
+// The references on the map: the ones you tagged "AxiA symbol", or, until you tag any, the
+// SHOWCASE_COUNT symbol images closest to the AxiA symbol's look (chrome, metal, monochrome, centred).
+export const SHOWCASE_COUNT = 5;
+const LIKE_SYMBOL = { Symbol: 3, Chrome: 2, Metallic: 2, Glossy: 1, Grayscale: 1, Monochrome: 1, Symmetrical: 1, Geometric: 1, Centered: 1, Render: 1, Futuristic: 1, Studio: 0.5, Black: 0.5, Grey: 0.5, White: 0.5 };
+const likeness = (e) => e.tags.reduce((s, t) => s + (LIKE_SYMBOL[t] ?? 0), 0);
+export function symbolRefs(entries) {
+  const tagged = entries.filter(isShowcase);
+  if (tagged.length) return tagged;
+  return entries.filter((e) => e.status === "tagged" && e.tags.includes("Symbol"))
+    .sort((a, b) => likeness(b) - likeness(a) || a.id.localeCompare(b.id))
+    .slice(0, SHOWCASE_COUNT);
+}

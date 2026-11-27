@@ -1,8 +1,9 @@
-import Nav from "./Nav";
+import Shell from "./shell/Shell";
 import "./globals.css";
 import "./brand.css";
 import "./flow.css";
 import "./library.css";
+import "./shell/shell.css";
 
 export const metadata = {
   title: "AxiA",
@@ -19,8 +20,7 @@ export default function RootLayout({ children }) {
         <link rel="stylesheet" href="https://use.typekit.net/bjk5ima.css" suppressHydrationWarning />
       </head>
       <body>
-        <Nav />
-        <main>{children}</main>
+        <Shell>{children}</Shell>
       </body>
     </html>
   );

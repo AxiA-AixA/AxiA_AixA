@@ -1,7 +1,9 @@
 "use client";
 
-// The reference map: every library image as a dot, linked to hubs (its colours, types, tags…).
-// This file holds the React side: what is shown (filters, grouping, project) and the panels.
+// The reference map: the AxiA symbol in the centre, with the references that share its look around it
+// (the ones tagged "AxiA symbol" in Library; until then the closest chrome / metal symbol images).
+// The rest of the library is not on the map in this version. This file holds the React side: what is
+// shown (search filters, map or grid) and the panels.
 // The rest lives in small modules:
 //   lib/graph/terms.js   grouping, search terms, suggestions (pure)
 //   lib/graph/layout.js  force layout with a quadtree (pure)
@@ -13,39 +15,40 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { hostOf } from "@/lib/links";
-import { GROUP_BY, KIND, countTerms, fieldNames, passes, suggest } from "@/lib/graph/terms";
-import { place, step } from "@/lib/graph/layout";
+import { KIND, countTerms, fieldNames, passes, suggest } from "@/lib/graph/terms";
+import { step } from "@/lib/graph/layout";
 import { loadThumb } from "@/lib/graph/thumbs";
 import { fetchLibrary } from "@/lib/client/library";
 import { camMoved, fitStep, toScreen } from "./graph/camera";
 import { drawMap } from "./graph/draw";
 import { attachInput } from "./graph/input";
 import RefGrid from "./shared/RefGrid";
-import { changeTags, isShowcase, SHOWCASE_TAG } from "./shared/tags";
+import { changeTags, symbolRefs } from "./shared/tags";
 
 // Display settings. The sliders are a design tool: they show only with ?tune in the address.
 const TUNING = [
+  { key: "ring", label: "Distance from the symbol", min: 120, max: 500, step: 10, value: 230 },
   { key: "spread", label: "Spread (dot repulsion)", min: 20, max: 600, step: 10, value: 400 },
-  { key: "dot", label: "Dot size", min: 2, max: 12, step: 0.5, value: 12 },
+  { key: "dot", label: "Image size", min: 6, max: 120, step: 1, value: 15 },
   { key: "showAt", label: "Image shows from radius (px)", min: 3, max: 40, step: 1, value: 5 },
-  { key: "lens", label: "Lens reach (px)", min: 40, max: 400, step: 10, value: 400 },
-  { key: "lensGain", label: "Lens strength", min: 0, max: 8, step: 0.1, value: 5 },
-  { key: "hover", label: "Hover size (px)", min: 20, max: 160, step: 2, value: 60 },
-  { key: "corner", label: "Corner radius when large (px)", min: 0, max: 30, step: 1, value: 10 },
+  { key: "lens", label: "Lens reach (px)", min: 40, max: 400, step: 10, value: 220 },
+  { key: "lensGain", label: "Lens strength", min: 0, max: 2, step: 0.05, value: 0.15 },
+  { key: "hover", label: "Hover size (px)", min: 20, max: 200, step: 2, value: 64 },
+  { key: "corner", label: "Corner radius (px)", min: 0, max: 30, step: 1, value: 8 },
 ];
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
-const HUB_DOTS = 2;      // hub circle radius = this × dot size (screen px)
+const SYMBOL_HUB = "AxiA"; // the one hub: the AxiA symbol
 const SIDE_W = 340;      // right-hand panel column (matches .side in globals.css)
 const POLL_MS = 5000;    // library refresh, so new analysis results move in live
 const LAYOUT_MS = 8;     // layout time per frame
-const STORE = "axia-tuning";
-const FILTERS = "axia-filters"; // searched terms + grouping + project, kept for this browser tab
+const STORE = "axia-tuning-symbol-2"; // new name: the old big-library settings don't carry over
+const FILTERS = "axia-map-view"; // searched terms + map/grid, kept for this browser tab
 
 // The map state lives outside React (it changes every frame) and is kept while visiting other
 // pages, so coming back shows the same layout. Reset on reload.
 let kept = null;
 const freshState = () => ({
-  nodes: [], byId: new Map(), hubs: new Map(), hubCache: new Map(), etag: null,
+  nodes: [], byId: new Map(), shownIds: new Set(), hub: null, etag: null,
   cam: { x: 0, y: 0, k: 1 }, shownK: 1, heat: 0, mouse: null, hover: null, dragged: null, userCam: false, dirty: true,
 });
 const readJSON = (store, key) => { try { return JSON.parse(store.getItem(key) ?? "null"); } catch { return null; } };
@@ -59,9 +62,8 @@ export default function Graph() {
   const [tune, setTune] = useState(DEFAULTS);
   const [showTuning, setShowTuning] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  // What is shown. showcase: only the references tagged "AxiA symbol" (the first screen);
-  // proj: one project's references; sel: searched terms; mode: "map" or "grid".
-  const [view, setView] = useState({ by: "Color", sel: [], auto: false, proj: null, showcase: false, mode: "map" });
+  // What is shown: sel = searched terms; mode = "map" or "grid".
+  const [view, setView] = useState({ sel: [], mode: "map" });
   const [shownEntries, setShownEntries] = useState([]); // for the grid view
   const [terms, setTerms] = useState([]);        // [[term, count]] among shown images
   const [hits, setHits] = useState(0);
@@ -78,38 +80,24 @@ export default function Graph() {
   g.current.dirty = true; // any re-render (settings, filters, panels) redraws once
 
   // ---------- what is shown ----------
-  const keysOf = (e, v = viewRef.current) => (v.by === "Tags" && v.sel.length ? v.sel : GROUP_BY[v.by](e));
-
-  function hubFor(key) {
-    const s = g.current;
-    if (!s.hubs.has(key)) {
-      const h = s.hubCache.get(key) ?? place({ id: key, hub: true }); // hubs keep their place across rebuilds
-      h.kids = [];
-      s.hubCache.set(key, h);
-      s.hubs.set(key, h);
-      s.nodes.push(h);
-    }
-    return s.hubs.get(key);
-  }
-
   // Recompute the shown nodes and their links; `heat` lets the layout move again.
   function rebuild(heat = 1, v = viewRef.current) {
     const s = g.current;
-    const proj = v.proj?.refs;
-    const items = [...s.byId.values()].filter((n) => passes(n.entry, v.sel) && (!proj || proj.includes(n.id)) && (!v.showcase || isShowcase(n.entry)));
-    s.nodes = [...items];
-    s.hubs.clear();
-    for (const n of items) {
-      n.parents = keysOf(n.entry, v).map(hubFor);
-      for (const h of n.parents) h.kids.push(n);
-      if (n.x == null) place(n, n.parents[0]);
-    }
+    s.hub ??= { id: SYMBOL_HUB, hub: true, symbol: true, x: 0, y: 0, vx: 0, vy: 0, pinned: true }; // stays in the centre
+    const items = [...s.byId.values()].filter((n) => s.shownIds.has(n.id) && passes(n.entry, v.sel));
+    s.hub.kids = items;
+    s.nodes = [s.hub, ...items];
+    // An even ring around the symbol, first one at the top. They stay put (drag one to move it).
+    const R = tuneRef.current.ring;
+    items.forEach((n, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / items.length;
+      Object.assign(n, { parents: [s.hub], x: R * Math.cos(a), y: R * Math.sin(a), vx: 0, vy: 0, pinned: true });
+    });
     s.userCam = false;
     s.dirty = true;
     s.heat = Math.max(s.heat, heat);
-    // Terms of the shown images only, so each pick narrows the result (and the first screen
-    // offers only the symbol references' own tags).
-    setTerms(countTerms(items.map((n) => n.entry), v.showcase ? [...v.sel, SHOWCASE_TAG] : v.sel));
+    // Terms of the shown images only, so each pick narrows the result.
+    setTerms(countTerms(items.map((n) => n.entry), v.sel));
     setHits(items.length);
     setShownEntries(items.map((n) => n.entry));
   }
@@ -121,12 +109,7 @@ export default function Graph() {
     try { sessionStorage.setItem(FILTERS, JSON.stringify(v)); } catch {}
     rebuild(1, v);
   }
-  // Filtering switches the Color view to Tags; clearing every filter switches back.
-  function setSelected(sel) {
-    const v = viewRef.current;
-    const by = sel.length && v.by === "Color" ? "Tags" : !sel.length && v.auto ? "Color" : v.by;
-    changeView({ sel, by, auto: by === v.by ? v.auto : by === "Tags" });
-  }
+  const setSelected = (sel) => changeView({ sel });
   const addTerm = (t) => {
     if (!t || viewRef.current.sel.includes(t)) return;
     setSelected([...viewRef.current.sel, t]);
@@ -135,56 +118,49 @@ export default function Graph() {
   const toggleTerm = (t) => (view.sel.includes(t) ? setSelected(view.sel.filter((x) => x !== t)) : addTerm(t));
 
   // ---------- library ----------
-  // New entries get a node; known ones pick up new analysis results.
+  // New entries get a node; known ones pick up new analysis results. Then work out which are shown.
   function merge(items) {
     const s = g.current;
     let changed = false;
     for (const e of items) {
       const n = s.byId.get(e.id);
       if (!n) {
-        const node = { id: e.id, hub: false, entry: e };
-        s.byId.set(e.id, node);
-        loadThumb(node, [e.thumb, e.image], () => { s.dirty = true; });
+        s.byId.set(e.id, { id: e.id, hub: false, entry: e });
         changed = true;
       } else {
-        if (n.entry.tags.join() !== e.tags.join() || keysOf(n.entry).join() !== keysOf(e).join()) changed = true;
+        if (n.entry.tags.join() !== e.tags.join()) changed = true;
         n.entry = e;
         if (detailRef.current?.id === e.id) setDetail(e); // keep the open panel current
       }
     }
-    if (changed) rebuild(0.3); // background updates nudge the layout, not reshuffle it
-    setCount(s.byId.size);
+    const ids = symbolRefs([...s.byId.values()].map((n) => n.entry)).map((e) => e.id);
+    if (ids.join() !== [...s.shownIds].join()) { s.shownIds = new Set(ids); changed = true; }
+    for (const id of ids) { // only the shown images load their thumbnails
+      const n = s.byId.get(id);
+      if (!n.loading) { n.loading = true; loadThumb(n, [n.entry.thumb, n.entry.image], () => { s.dirty = true; }); }
+    }
+    if (changed) rebuild(0.6);
+    setCount(ids.length);
   }
 
   useEffect(() => {
     const s = g.current;
-    // Settings are remembered per browser; filters per tab.
+    // Settings are remembered per browser; the view per tab.
     setTune({ ...DEFAULTS, ...readJSON(localStorage, STORE) });
     setShowTuning(new URLSearchParams(location.search).has("tune"));
     if (matchMedia("(max-width: 640px)").matches) { setPanelOpen(false); panelWas.current = false; } // phones: keep the map visible
     const saved = readJSON(sessionStorage, FILTERS);
-    const fresh = !(saved && GROUP_BY[saved.by] && Array.isArray(saved.sel));
-    if (!fresh) { viewRef.current = { ...viewRef.current, ...saved }; setView(viewRef.current); }
+    if (saved && Array.isArray(saved.sel)) { viewRef.current = { ...viewRef.current, sel: saved.sel, mode: saved.mode === "grid" ? "grid" : "map" }; setView(viewRef.current); }
 
     if (s.byId.size) { // back from another page: the kept layout as it was
       const userCam = s.userCam;
       Object.assign(s, { mouse: null, hover: null, dragged: null });
       rebuild(0);
       s.userCam = userCam;
-      setZoom(s.cam.k); setCount(s.byId.size);
+      setZoom(s.cam.k); setCount(s.shownIds.size);
     }
-    // First open in this tab: the AxiA symbol references if any are tagged, else the last project.
-    let first = fresh;
     const load = () => fetchLibrary(s.etag)
-      .then((d) => {
-        if (!d) return;
-        s.etag = d.etag; setOnline(d.online); merge(d.items);
-        if (first && d.online) {
-          first = false;
-          if (d.items.some(isShowcase)) changeView({ showcase: true });
-          else openLastProject();
-        }
-      })
+      .then((d) => { if (d) { s.etag = d.etag; setOnline(d.online); merge(d.items); } })
       .catch(() => setOnline(false));
     loadRef.current = () => { s.etag = null; load(); };
     load();
@@ -192,27 +168,17 @@ export default function Graph() {
     return () => { clearInterval(t); kept = s; };
   }, []);
 
-  // First open in this tab: start on the most recently used project's references.
-  function openLastProject() {
-    fetch("/api/projects").then((r) => r.json()).then((list) => {
-      const last = list.filter((p) => p.refs > 0).sort((a, b) => b.updated.localeCompare(a.updated))[0];
-      return last && fetch(`/api/projects/${last.id}`).then((r) => r.json());
-    }).then((p) => {
-      if (p?.refs?.length && !viewRef.current.proj) changeView({ proj: { id: p.id, name: p.name, refs: p.refs } });
-    }).catch(() => {});
-  }
-
   function setParam(key, value) {
     const next = { ...tune, [key]: value };
     setTune(next);
+    if (key === "ring") { tuneRef.current = next; rebuild(0); }
     try { localStorage.setItem(STORE, JSON.stringify(next)); } catch {}
   }
   function resetLayout() {
     setTune(DEFAULTS);
     try { localStorage.removeItem(STORE); } catch {}
-    const s = g.current;
-    for (const n of [...s.byId.values(), ...s.hubCache.values()]) n.pinned = false;
-    s.heat = 1;
+    tuneRef.current = DEFAULTS;
+    rebuild(0);
   }
 
   function openDetail(e) {
@@ -238,7 +204,8 @@ export default function Graph() {
     const css = getComputedStyle(document.documentElement), colors = {};
     const color = (v) => (colors[v] ??= css.getPropertyValue(v).trim());
     const phone = () => canvas.clientWidth <= 640;
-    const hubR = (h) => (h.rep?.img ? tuneRef.current.dot * HUB_DOTS : 6);
+    // The symbol is a bit larger than the images around it.
+    const hubR = () => Math.max(40, Math.min(80, 50 * s.cam.k)); // half the symbol's width, px
     const pos = (n) => toScreen(s.cam, canvas, n);
     const hubAt = (m) => m && s.nodes.findLast((n) => n.hub && Math.hypot(pos(n).x - m.x, pos(n).y - m.y) <= Math.max(hubR(n), 10));
     // Hub circles keep a screen-px gap; the zoom used is floored so it can't feed back into fitting
@@ -256,7 +223,7 @@ export default function Graph() {
       if (!s.userCam && s.nodes.length) { // keep every dot in view until the user zooms or drags
         const before = s.cam;
         s.cam = fitStep(s.cam, canvas, s.nodes, {
-          pad: 120 + 2 * tuneRef.current.dot * HUB_DOTS,
+          pad: 2 * tuneRef.current.dot * s.cam.k + 80, // room for the images around the ring
           side: phone() ? 0 : SIDE_W + 48, top: phone() ? 210 : 0, // where the panels cover the map
         });
         fitted = camMoved(before, s.cam);
@@ -309,7 +276,7 @@ export default function Graph() {
         <div className="tag-search glass">
           <p className="tag-status">
             {!online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
-              : view.sel.length || view.proj || view.showcase ? `${hits} of ${count} references · ${terms.length} tags` : `${count} references · ${terms.length} terms`}
+              : view.sel.length ? `${hits} of ${count} references around the AxiA symbol` : `${count} references around the AxiA symbol · ${terms.length} tags`}
           </p>
           <form onSubmit={(e) => { e.preventDefault(); if (showSuggest) addTerm(suggestions[active]?.[0]); }} role="search">
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -337,16 +304,8 @@ export default function Graph() {
               </ul>
             )}
           </form>
-          {(view.sel.length > 0 || view.proj || view.showcase) && (
+          {view.sel.length > 0 && (
             <div className="tag-chips">
-              {view.showcase && (
-                <button type="button" className="chip on" aria-label="Show all references, not only the AxiA symbol references" title="Show all references"
-                  onClick={() => changeView({ showcase: false })}>AxiA symbol references<span className="chip-x" aria-hidden="true">×</span></button>
-              )}
-              {view.proj && (
-                <button type="button" className="chip on" aria-label={`Show all references, not only ${view.proj.name}`} title="Show all references"
-                  onClick={() => changeView({ proj: null })}>Project: {view.proj.name}<span className="chip-x" aria-hidden="true">×</span></button>
-              )}
               {view.sel.map((t) => (
                 <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
                   onClick={() => setSelected(view.sel.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
@@ -386,11 +345,6 @@ export default function Graph() {
 
         <details className="tuning glass" open={panelOpen} onToggle={(e) => setPanelOpen(e.currentTarget.open)}>
           <summary>Display <span>· zoom {zoom.toFixed(2)}</span></summary>
-          <div className="segmented" role="group" aria-label="Group the map by">
-            {Object.keys(GROUP_BY).map((by) => (
-              <button key={by} type="button" aria-pressed={by === view.by} onClick={() => changeView({ by, auto: false })}>{by}</button>
-            ))}
-          </div>
           {showTuning && TUNING.map((p) => (
             <label key={p.key}>
               <span>{p.label}</span>
@@ -408,8 +362,8 @@ export default function Graph() {
       </div>
       {count === 0 && online && (
         <div className="empty">
-          <h1>Nothing here yet</h1>
-          <p>Send references with the Chrome extension (“Send to AxiA”) or add links and files in Library. They show up here once analysed.</p>
+          <h1>No symbol references yet</h1>
+          <p>The map shows the AxiA symbol with the references that share its look. Tag images “AxiA symbol” in Library (select them, then “Show on map’s first screen”).</p>
           <Link href="/library" className="btn primary">Open Library</Link>
         </div>
       )}
