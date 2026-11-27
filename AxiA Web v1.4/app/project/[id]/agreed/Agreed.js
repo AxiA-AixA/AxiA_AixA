@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { latestVotes, summarise } from "@/lib/spec";
 import { AxiaLogotype, AxiaSymbol } from "../../../Brand";
+import HeadTools from "../../../shell/HeadTools";
 
 // Swatch colours for the palette names the analyser uses.
 const SWATCH = {
@@ -70,7 +71,7 @@ export default function Agreed({ id }) {
   return (
     <article className="agreed">
       <div className="agreed-actions no-print">
-        <Link href={`/project/${id}`} className="back">← {p.name}</Link>
+        <HeadTools><Link href={`/project/${id}`} className="back">← {p.name}</Link></HeadTools>
         <div className="row">
           <button className="btn" onClick={copy}>{copied ? "Copied" : "Copy as text"}</button>
           <button className="btn primary" onClick={() => window.print()}>Print or save as PDF</button>

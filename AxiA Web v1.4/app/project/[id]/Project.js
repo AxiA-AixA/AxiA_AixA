@@ -18,6 +18,7 @@ import RefsPanel, { isAnalysing } from "./RefsPanel";
 import SpecPanel from "./SpecPanel";
 import ClientPanel from "./ClientPanel";
 import Picker from "./Picker";
+import HeadTools from "../../shell/HeadTools";
 
 const TOAST_MS = 6000;
 const ANALYSING_POLL_MS = 2000; // while images are analysed, the spec fills in as tags arrive
@@ -120,7 +121,7 @@ export default function Project({ id }) {
   return (
     <section className="project">
       <header className="project-head">
-        <Link href="/" className="back">← Projects</Link>
+        <HeadTools><Link href="/" className="back">← All projects</Link></HeadTools>
         <div className="title-row">
           <input className="title-input" value={p.name} onChange={(e) => save({ name: e.target.value })} aria-label="Project name" />
           <button className="btn primary next-action" onClick={actions[next.action]} disabled={next.disabled}>

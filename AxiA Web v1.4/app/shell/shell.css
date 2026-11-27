@@ -146,7 +146,7 @@ input.tool-search:focus-visible { box-shadow: var(--glass-edge), 0 0 0 3px var(-
 .project-card .card-text { padding: 10px 2px 0; }
 .project-card .card-text h2 { font-size: 13px; margin: 0 0 2px; }
 .project-card .card-text p { font-size: 12px; }
-.new-card { display: grid; place-items: center; gap: 6px; aspect-ratio: 16 / 10; width: 100%; border: 1px dashed var(--line); border-radius: 10px; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+.new-card { display: grid; place-items: center; align-content: center; gap: 6px; aspect-ratio: 16 / 10; width: 100%; border: 1px dashed var(--line); border-radius: 10px; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
 .new-card:hover { color: var(--black); border-color: var(--muted); }
 .new-project-form { display: grid; gap: 14px; }
 .new-project-form .fields { grid-template-columns: 1fr; }
@@ -166,7 +166,8 @@ input.tool-search:focus-visible { box-shadow: var(--glass-edge), 0 0 0 3px var(-
 }
 .feedback-form { padding: 0; background: none; box-shadow: none; }
 /* Pages without a page bar start a little below the top */
-.page > .project, .page > .how, .page > .lab, .page > .agreed, .page > .agreed-wrap { padding-top: 28px; }
+.page > .project, .page > .how, .page > .lab, .page > .agreed, .page > .agreed-wrap { padding-top: 12px; }
+.head-tools .back { padding: 0 4px; font-size: 13px; } /* a page's way back, in the header row */
 /* Ratings: question on the left, the 1–5 scale lined up on the right */
 .rating { display: grid; grid-template-columns: 1fr auto; }
 @media (max-width: 560px) { .rating { grid-template-columns: 1fr; } }
