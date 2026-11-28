@@ -283,6 +283,19 @@ export default function Graph({ lens }) {
   const openRef = useRef(openDetail); openRef.current = openDetail;
   const tagRef = useRef(openTag); tagRef.current = openTag;
   const loadRef = useRef(() => {});
+  // The default lens needs the AxiA symbol image in the library: add it by itself (once) when it's missing.
+  const [symbolAdd, setSymbolAdd] = useState("idle"); // idle | adding | done | failed
+  const [symbolError, setSymbolError] = useState("");
+  async function addSymbol() {
+    setSymbolAdd("adding");
+    try {
+      const res = await fetch("/api/library/symbol", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "the analyser didn’t answer");
+      setSymbolAdd("done");
+      loadRef.current();
+    } catch (e) { setSymbolError(e.message); setSymbolAdd("failed"); }
+  }
   // Grid view: hand-made tags can be added and removed on each card.
   async function tagEntry(e, change) {
     try { await changeTags([e.id], change); } catch {}
@@ -362,6 +375,8 @@ export default function Graph({ lens }) {
   }
 
   const symbol = g.current.byId.get(SYMBOL_ID)?.entry;
+  const symbolMissing = !lens && count > 0 && !symbol && online;
+  useEffect(() => { if (symbolMissing && symbolAdd === "idle") addSymbol(); }, [symbolMissing, symbolAdd]);
   const countLine = !online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
     : view.sel.length ? `${hits} of ${count} references`
     : !lensInfo.tags.length ? `${lensInfo.name} has no tags yet`
@@ -479,12 +494,15 @@ export default function Graph({ lens }) {
         </aside>
       )}
 
-      {!lens && count > 0 && !symbol && online && (
+      {symbolMissing && symbolAdd !== "adding" && (
         <div className="empty">
           <h1>The AxiA symbol isn’t in the library</h1>
-          <p>The map shows the AxiA symbol’s tags. Add public/brand/AxiA_Symbol_500.png in Library and it appears here once analysed.</p>
-          <Link href="/library" className="btn primary">Open Library</Link>
+          <p>{symbolAdd === "failed" ? `AxiA couldn’t add it: ${symbolError}` : "The map shows the AxiA symbol’s tags."}</p>
+          <button className="btn primary" onClick={addSymbol}>Add the AxiA symbol</button>
         </div>
+      )}
+      {symbolMissing && symbolAdd === "adding" && (
+        <div className="empty"><h1>Adding the AxiA symbol…</h1><p>The map appears once the AI has tagged it.</p></div>
       )}
     </div>
   );

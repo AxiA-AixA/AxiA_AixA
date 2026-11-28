@@ -9,8 +9,13 @@ SRC="$PWD"
 # The code is mirrored there on every start; data/ stays here on Drive (linked).
 RUN="$HOME/Library/Caches/AxiA-v2"
 
-# AI analyser off? Open its launcher in its own Terminal window (same as the Windows .bat).
-curl -s -m 2 -o /dev/null http://127.0.0.1:8770/api/ping || { chmod +x ../axia-prototype/Axia-*-Mac.command; open -a Terminal ../axia-prototype/Axia-*-Mac.command; }  # Drive sometimes drops the run permission
+# AI analyser off? Start it in its own Terminal window, without its own browser window:
+# the site (3001) is the one to use; the analyser's page opens from Library → Analyser settings.
+if ! curl -s -m 2 -o /dev/null http://127.0.0.1:8770/api/ping; then
+  AXIA_DIR="$(cd ../axia-prototype && pwd)"
+  python3 -c "import PIL" 2>/dev/null || python3 -m pip install --quiet --user pillow
+  osascript -e "tell application \"Terminal\" to do script \"cd '$AXIA_DIR' && python3 app.py --no-browser\""
+fi
 
 # Already running? Just open it.
 if curl -s -m 2 -o /dev/null "$URL"; then

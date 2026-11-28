@@ -17,9 +17,13 @@ rem node_modules may come from the Mac via Google Drive; add the Windows compile
 if not exist node_modules\@next\swc-win32-x64-msvc call npm install --no-save @next/swc-win32-x64-msvc@16.2.7
 
 rem Start the AI analyser (axia-prototype, port 8770) in its own window if it is not running.
-rem Wildcard keeps this file ASCII: the analyser launcher has Korean in its name.
 curl -s -m 2 -o nul http://127.0.0.1:8770/api/ping
-if errorlevel 1 for %%f in ("%~dp0..\axia-prototype\Axia-*-Windows.bat") do start "AxiA analyser" /d "%~dp0..\axia-prototype" "%%~f"
+rem --no-browser: the site is the one to use; the analyser's page opens from Library, Analyser settings.
+if errorlevel 1 (
+  set PYTHONUTF8=1
+  python -c "import PIL" 2> nul || python -m pip install --quiet pillow
+  start "AxiA analyser" /d "%~dp0..\axia-prototype" cmd /k python app.py --no-browser
+)
 
 rem Already running? Just open it.
 curl -s -m 2 -o nul %URL%
