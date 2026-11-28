@@ -9,8 +9,8 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
     fetch(`${AXIA}/api/ping`).then((r) => r.ok).catch(() => false),
   ]);
   $("#st").className = "st" + (site && analyser ? "" : " bad");
-  $("#st").textContent = site && analyser ? "AxiA와 연결됨" : site ? "AI 분석기가 꺼져 있어요. AxiA_v2_open을 다시 실행해 주세요."
-    : analyser ? "AxiA 사이트가 꺼져 있어요. 보내면 보관함에만 들어가요." : "AxiA가 꺼져 있어요. AxiA_v2_open을 실행해 주세요.";
+  $("#st").textContent = site && analyser ? "AxiA와 연결됨" : site ? "AI 분석기가 꺼져 있어요. AxiA_v1.4_open을 다시 실행해 주세요."
+    : analyser ? "AxiA 사이트가 꺼져 있어요. 보내면 보관함에만 들어가요." : "AxiA가 꺼져 있어요. AxiA_v1.4_open을 실행해 주세요.";
 
   // Where right-click sends by default (★ in the menu).
   const projects = site ?? (await chrome.storage.local.get("projects")).projects ?? [];

@@ -66,7 +66,7 @@ async function send(target, items) {
       const d = await fetch(`${AXIA}/api/add`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(it) }).then((res) => res.json()).catch(() => null);
       if (d?.id) ids.push(d.id);
     }
-    if (!ids.length) { badge("!", "#C00000"); return toast(null, "AxiA로 못 보냈어요", "AxiA가 꺼져 있어요. AxiA_v2_open을 실행해 주세요."); }
+    if (!ids.length) { badge("!", "#C00000"); return toast(null, "AxiA로 못 보냈어요", "AxiA가 꺼져 있어요. AxiA_v1.4_open을 실행해 주세요."); }
     r = { added: ids, errors: [] };
     note = "AxiA 사이트가 꺼져 있어서 보관함에만 넣었어요. ";
     target = LIB;

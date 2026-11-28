@@ -6,7 +6,7 @@ export const FIELD_NAMES = {
   "3d": "3D", graphic: "Graphic", photo: "Photo", architecture: "Architecture", typography: "Typography",
   painting: "Painting", package: "Package", video: "Video", ui_ux: "UI/UX", editorial: "Editorial", ai_image: "AI Image",
 };
-export const fieldNames = (e) => (e.fields.length ? e.fields.map((f) => FIELD_NAMES[f] ?? f) : [e.status === "tagged" ? "Other" : "Analysing"]);
+export const fieldNames = (e) => (e.fields.length ? e.fields.map((f) => FIELD_NAMES[f] ?? f) : [e.status === "tagged" ? "Other" : e.status === "failed" ? "Not analysed" : "Analysing"]);
 
 // "kr.pinterest.com", "uk.pinterest.com" -> "pinterest.com" (country subdomains are one platform)
 export const platformOf = (url) => hostOf(url).replace(/^[a-z]{2}\./, "");

@@ -67,3 +67,16 @@
 .word-check li.checking::before, .word-check li.unchecked::before { color: var(--muted); }
 .word-check li.checking::before { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }
+
+/* Adding references (link, image files, Instagram export) in one box */
+.add-bar { padding: 14px; gap: 10px; }
+.add-title { margin: 0; font-size: 13px; font-weight: 500; color: var(--black); }
+.add-ways { gap: 8px; }
+.add-ways .btn.outline { height: 30px; margin: 0; }
+/* Analysis status: waiting for the AI, couldn't be analysed, re-analyse */
+.analysis-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 0 4px; font-size: 13px; }
+.analysis-bar .dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; vertical-align: 1px; }
+.dot.wait { background: #e0b85a; }
+.dot.fail { background: #e0705f; }
+.analysis-bar .btn.outline { height: 30px; }
+.detail .btn.outline { align-self: flex-start; height: 34px; }

@@ -14,13 +14,20 @@ import RefDetail from "../shared/RefDetail";
 import HeadTools from "../shell/HeadTools";
 
 const POLL_MS = 4000;
+// The Show filter: which references are listed.
+const SHOW = {
+  all: () => true,
+  mine: (e) => e.userTags.length > 0,
+  waiting: (e) => e.status === "queued" || e.status === "retry" || e.status === "new",
+  failed: (e) => e.status === "failed",
+};
 
 export default function Library() {
   const [lib, setLib] = useState({ online: true, items: [] });
   const etag = useRef(null);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState([]);
-  const [onlyMine, setOnlyMine] = useState(false);
+  const [show, setShow] = useState("all"); // all | mine | waiting (for the AI) | failed
   const [selected, setSelected] = useState(new Set());
   const [bulk, setBulk] = useState("");
   const [msg, setMsg] = useState("");
@@ -61,9 +68,9 @@ export default function Library() {
 
   const q = query.trim().toLowerCase();
   const shown = useMemo(() => lib.items.filter((e) =>
-    passes(e, filters) && (!onlyMine || e.userTags.length) &&
+    passes(e, filters) && SHOW[show](e) &&
     (!q || e.tags.some((t) => t.toLowerCase().includes(q)) || (e.title ?? "").toLowerCase().includes(q) || (e.url ?? "").toLowerCase().includes(q))
-  ), [lib.items, filters, onlyMine, q]);
+  ), [lib.items, filters, show, q]);
   const terms = useMemo(() => countTerms(shown, filters), [shown, filters]);
   const allTerms = useMemo(() => countTerms(lib.items), [lib.items]);
   const ideas = suggest(terms, "", 12);
@@ -80,6 +87,18 @@ export default function Library() {
     etag.current = null; reload();
   }
 
+  // Analysis: how many are waiting for the AI or couldn't be read, and asking it again.
+  const waiting = lib.items.filter(SHOW.waiting).length, failed = lib.items.filter(SHOW.failed);
+  const limitHit = failed.some((e) => /429|quota/i.test(e.error ?? ""));
+  async function retag(body, what) {
+    try {
+      const res = await fetch("/api/library/retag", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const d = await res.json();
+      setMsg(d.error ?? `${d.queued} ${what} queued for analysis again.`);
+    } catch { setMsg("Couldn't reach the analyser. Check that AxiA is running."); }
+    etag.current = null; reload();
+  }
+
   const select = (id, on) => setSelected((cur) => { const next = new Set(cur); on ? next.add(id) : next.delete(id); return next; });
   const ids = [...selected];
   function bulkAdd(e) {
@@ -93,35 +112,49 @@ export default function Library() {
 
   return (
     <section className="library">
-      {/* In the header row: search, then adding */}
+      {/* In the header row: search */}
       <HeadTools>
         <input id="page-search" className="tool-search glass" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tags, titles or sites" aria-label="Search the library" />
         <span className="muted head-count">{shown.length === lib.items.length ? `${lib.items.length} references` : `${shown.length} of ${lib.items.length}`}</span>
-        <span className="head-spacer" />
-        <button className="tool glass" title="JSON exported from the Instagram saved-posts collector extension" onClick={() => jsonInput.current?.click()} disabled={!lib.online}>Instagram JSON</button>
-        <button className="tool glass" onClick={() => fileInput.current?.click()} disabled={!lib.online}>Upload images</button>
-        <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={(e) => { importJson(e.target.files[0]); e.target.value = ""; }} />
       </HeadTools>
 
       {!lib.online && <p className="notice glass">The AI analyser (axia-prototype) is off. Open <code>Axia-실행-Mac.command</code> in the axia-prototype folder, then refresh.</p>}
 
+      {/* Adding references, all three ways in one box: a link, image files, an Instagram export */}
       <div className="add-bar glass">
+        <p className="add-title">Add references</p>
         <form onSubmit={async (e) => { e.preventDefault(); if (await adder.addLinks(link)) setLink(""); }}>
           <input ref={linkInput} value={link} onChange={(e) => setLink(e.target.value)} aria-label="Reference link"
             placeholder="Paste a link: Pinterest, Instagram, Are.na, Cosmos, Behance, Dribbble, a portfolio site or an image" />
           <button className="btn primary" disabled={!link.trim() || !lib.online}>Add</button>
         </form>
         <div className="add-ways">
-          <span className="muted">Or drop images anywhere · ⌘V a screenshot{adder.uploading ? ` · adding ${adder.uploading}…` : ""}</span>
+          <button className="btn outline" onClick={() => fileInput.current?.click()} disabled={!lib.online}>Upload images</button>
+          <button className="btn outline" title="JSON exported from the Instagram saved-posts collector extension" onClick={() => jsonInput.current?.click()} disabled={!lib.online}>Instagram JSON</button>
+          <span className="muted">or drop images anywhere · ⌘V a screenshot{adder.uploading ? ` · adding ${adder.uploading}…` : ""}</span>
           <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => { adder.addFiles(e.target.files); e.target.value = ""; }} />
+          <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={(e) => { importJson(e.target.files[0]); e.target.value = ""; }} />
         </div>
         {adder.error && <p className="error" role="alert">{adder.error}</p>}
       </div>
 
+      {/* Analysis: what's still with the AI, what it couldn't read */}
+      {(waiting > 0 || failed.length > 0) && (
+        <div className="analysis-bar">
+          {waiting > 0 && <span><i className="dot wait" />{waiting} waiting for the AI</span>}
+          {failed.length > 0 && <span><i className="dot fail" />{failed.length} couldn’t be analysed</span>}
+          {limitHit && <span className="muted">The AI’s free daily limit was reached; it resets at 08:00 UTC (17:00 in Korea).</span>}
+          <span className="head-spacer" />
+          {failed.length > 0 && <button className="btn outline" onClick={() => retag({ statuses: ["failed"] }, `${failed.length === 1 ? "reference" : "references"}`)} disabled={!lib.online}>Re-analyse failed ({failed.length})</button>}
+        </div>
+      )}
+
       <div className="tag-chips">
         <div className="segmented" role="group" aria-label="Show">
-          <button aria-pressed={!onlyMine} onClick={() => setOnlyMine(false)}>All</button>
-          <button aria-pressed={onlyMine} onClick={() => setOnlyMine(true)}>With my tags</button>
+          <button aria-pressed={show === "all"} onClick={() => setShow("all")}>All</button>
+          <button aria-pressed={show === "mine"} onClick={() => setShow("mine")}>With my tags</button>
+          {waiting > 0 && <button aria-pressed={show === "waiting"} onClick={() => setShow("waiting")}>Waiting {waiting}</button>}
+          {failed.length > 0 && <button aria-pressed={show === "failed"} onClick={() => setShow("failed")}>Couldn’t analyse {failed.length}</button>}
         </div>
         {filters.map((t) => <button key={t} className="chip on" onClick={() => setFilters(filters.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>)}
         {ideas.map(([t, n]) => <button key={t} className="chip" onClick={() => setFilters([...filters, t])}>{t} <span className="muted">{n}</span></button>)}
@@ -137,6 +170,7 @@ export default function Library() {
           <button className="btn" title="These show on the map's first screen" onClick={() => { tag(ids, { add: [SHOWCASE_TAG] }); setMsg(`${ids.length} reference${ids.length === 1 ? "" : "s"} will show on the map’s first screen.`); }}>
             Show on map’s first screen
           </button>
+          <button className="btn" onClick={() => retag({ ids }, ids.length === 1 ? "reference" : "references")}>Re-analyse</button>
           <button className="btn" onClick={() => setSelected(new Set(shown.map((e) => e.id)))}>Select all {shown.length}</button>
           <button className="btn" onClick={() => setSelected(new Set())}>Clear</button>
         </div>
@@ -151,7 +185,9 @@ export default function Library() {
       {open && (
         <aside className="inspector" aria-label="Selected reference">
           <RefDetail entry={open} onClose={() => setOpen(null)} isOn={(t) => filters.includes(t)}
-            onTag={(t) => setFilters(filters.includes(t) ? filters.filter((x) => x !== t) : [...filters, t])} />
+            onTag={(t) => setFilters(filters.includes(t) ? filters.filter((x) => x !== t) : [...filters, t])}>
+            <button className="btn outline" onClick={() => retag({ ids: [open.id] }, "reference")}>Re-analyse this image</button>
+          </RefDetail>
         </aside>
       )}
       {adder.dragging && <div className="drop-overlay" aria-hidden="true"><p>Drop to add to your library</p></div>}

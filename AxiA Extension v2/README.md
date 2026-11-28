@@ -4,7 +4,7 @@
 
 ## 설치
 
-1. AxiA v2를 켜요 (`AxiA Web v1.4/AxiA_v2_open.command`, Windows는 `.bat`). 사이트(3001)와 AI 분석기(8770)가 같이 켜져요.
+1. AxiA v2를 켜요 (`AxiA Web v1.4/AxiA_v1.4_open.command`, Windows는 `.bat`). 사이트(3001)와 AI 분석기(8770)가 같이 켜져요.
 2. Chrome 주소창에 `chrome://extensions` → 오른쪽 위 **개발자 모드** 켜기.
 3. **압축해제된 확장 프로그램을 로드합니다** → 이 `AxiA Extension v2` 폴더 선택.
 4. v1 확장(“Axia로 보내기”)도 켜 두면 우클릭 메뉴가 두 개 보여요. 헷갈리면 v1은 꺼 두세요.

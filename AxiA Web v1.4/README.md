@@ -9,8 +9,8 @@
 ## 켜기
 
 1. AI 분석기를 먼저 켜요. `axia-prototype` 폴더의 `Axia-실행-Mac.command`(Windows는 `.bat`)를 실행하세요. 아래 2번 런처를 쓰면 자동으로 켜져요.
-2. `AxiA_v2_open.command`(Windows는 `AxiA_v2_open.bat`)를 더블클릭하면 http://localhost:3001/map (맵) 이 열려요.
-   - ZIP으로 받은 경우 Mac에서는 처음 한 번 터미널에서 `chmod +x AxiA_v2_open.command ../axia-prototype/*.command`를 실행해야 더블클릭으로 열려요.
+2. `AxiA_v1.4_open.command`(Windows는 `AxiA_v1.4_open.bat`)를 더블클릭하면 http://localhost:3001/map (맵) 이 열려요.
+   - ZIP으로 받은 경우 Mac에서는 처음 한 번 터미널에서 `chmod +x AxiA_v1.4_open.command ../axia-prototype/*.command`를 실행해야 더블클릭으로 열려요.
    - 런처는 처음에 한 번 빌드(약 1분)한 뒤 빠른 모드로 켜요. 코드를 바꾸면 Mac 런처는 알아서 다시 빌드하고, Windows는 `.next` 폴더를 지우면 다시 빌드해요.
    - 코드를 고치면서 바로 보려면 터미널에서 `npm install` 후 `npm run dev`를 쓰세요.
    - v1(3000번 포트)과 동시에 켜도 돼요.

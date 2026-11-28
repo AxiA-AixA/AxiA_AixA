@@ -31,7 +31,7 @@ function Card({ e, onOpen, picked, onSelect, onTags }) {
   const [text, setText] = useState("");
   const mine = new Set(e.userTags.map((t) => t.toLowerCase()));
   const ai = e.tags.filter((t) => !mine.has(t.toLowerCase()));
-  const state = e.status === "queued" || e.status === "retry" ? "Analysing…" : e.status === "failed" ? "Couldn’t analyse" : "";
+  const state = e.status === "queued" || e.status === "retry" ? "Waiting…" : e.status === "failed" ? "Couldn’t analyse" : "";
 
   function submit(ev) {
     ev.preventDefault();
