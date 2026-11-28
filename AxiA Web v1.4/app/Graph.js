@@ -82,7 +82,8 @@ export default function Graph({ lens }) {
   const [lensOpen, setLensOpen] = useState(false); // the "Viewing" list
   const [recent, setRecent] = useState([]);        // recent projects, for that list
   const dockRef = useRef(null);
-  const projRef = useRef(null);                  // the lens project ({ name, word, refs, edits }), or null
+  const projRef = useRef(null);
+  const tagsRef = useRef([]);                    // the ring's tags now (see rebuild)                  // the lens project ({ name, word, refs, edits }), or null
 
   // The canvas loop reads these without re-subscribing.
   const viewRef = useRef(view); viewRef.current = view;
@@ -99,15 +100,22 @@ export default function Graph({ lens }) {
     const proj = projRef.current;
     const sym = s.byId.get(SYMBOL_ID);
     const projRefs = proj ? proj.refs.map((id) => s.byId.get(id)).filter(Boolean) : [];
-    const tags = proj ? lensTags(proj, projRefs.map((n) => n.entry)) : sym?.entry.tags ?? [];
-    const centre = proj ? (s.projNode ??= { hub: true, center: true }) : sym;
+    // Which tags make the ring:
+    //   a project: its tags (client's words and spec points), which you can take out or add to (view.lensTags);
+    //   Default, searching: only the searched tags, over the whole library, no centre;
+    //   Default: the AxiA symbol's tags around the symbol.
+    const searching = !proj && v.sel.length > 0;
+    const tags = proj ? v.lensTags ?? lensTags(proj, projRefs.map((n) => n.entry)) : searching ? v.sel : sym?.entry.tags ?? [];
+    tagsRef.current = tags;
+    const centre = proj ? (s.projNode ??= { hub: true, center: true }) : searching ? null : sym;
     if (centre) thumb(proj ? projRefs[0] ?? centre : sym); // first in the image queue
     const hubs = tags.map((t) => {
       if (!s.tagHubs.has(t)) s.tagHubs.set(t, { id: t, hub: true, vx: 0, vy: 0, pinned: true });
       return Object.assign(s.tagHubs.get(t), { kids: [] });
     });
-    // The references with every one of the lens's tags (as if they were filters) and every searched
-    // term. Fewer than ENOUGH: one tag fewer at a time (a project's tags rarely all meet in one image).
+    // Searching (Default): every reference with all the searched terms. Otherwise the references with
+    // every one of the ring's tags; fewer than ENOUGH: one tag fewer at a time (a project's tags rarely
+    // all meet in one image). A searched term in a project narrows that further (passes).
     const has = (n) => { const t = new Set(termsOf(n.entry).map((x) => x.toLowerCase())); return hubs.filter((h) => t.has(h.id.toLowerCase())); };
     const cand = [];
     for (const n of s.byId.values()) {
@@ -116,7 +124,8 @@ export default function Graph({ lens }) {
       if (n.parents.length) cand.push(n);
     }
     let need = hubs.length;
-    while (need > 1 && cand.filter((n) => n.parents.length >= need).length < ENOUGH) need--;
+    if (searching) need = 1; // passes() already asked for every searched term
+    else while (need > 1 && cand.filter((n) => n.parents.length >= need).length < ENOUGH) need--;
     const shown = hubs.length ? cand.filter((n) => n.parents.length >= need) : [];
     shown.sort((a, b) => b.parents.length - a.parents.length);
     for (const n of shown) { for (const h of n.parents) h.kids.push(n); thumb(n); }
@@ -137,11 +146,13 @@ export default function Graph({ lens }) {
     s.userCam = false;
     s.dirty = true;
     s.heat = Math.max(s.heat, heat);
-    setLensInfo({ name: proj ? proj.name : "Default", tags: hubs.map((h) => h.id), need });
+    setLensInfo({ name: proj ? proj.name : "Default", tags, need });
     // Grid: the same references, the ones with most of the tags first.
     const pool = shown.map((n) => n.entry);
-    // Suggestions are tags only (no sites or types), from everything shown.
-    setTerms(countTerms(pool, v.sel).filter(([t]) => !KIND.has(t)));
+    // Suggestions are tags only (no sites or types): from the whole library until something is searched,
+    // then from what that found (so each pick narrows the result).
+    const from = searching ? pool : [...s.byId.values()].map((n) => n.entry);
+    setTerms(countTerms(from, [...v.sel, ...(proj ? tags : [])]).filter(([t]) => !KIND.has(t)));
     setHits(pool.length);
     setShownEntries(pool.slice(0, GRID_MAX));
   }
@@ -152,7 +163,8 @@ export default function Graph({ lens }) {
     if (n.entry) loadThumb(n, [n.entry.thumb, n.entry.image], () => { g.current.dirty = true; });
   }
   // A tag shows its references in the grid; a project in the centre opens the project.
-  const openTag = (hub) => (hub.center ? router.push(`/project/${projRef.current.id}`) : changeView({ sel: [hub.id], mode: "grid" }));
+  const openTag = (hub) => (hub.center ? router.push(`/project/${projRef.current.id}`)
+    : changeView(viewRef.current.sel.includes(hub.id) ? { mode: "grid" } : { sel: [hub.id], mode: "grid" }));
 
   function changeView(patch) {
     const v = { ...viewRef.current, ...patch };
@@ -162,7 +174,14 @@ export default function Graph({ lens }) {
     rebuild(1, v);
   }
   const setSelected = (sel) => changeView({ sel });
+  // In a project, searching adds to its tags; × on a chip takes one out; Reset brings back the project's own.
+  const setLensTags = (lensTags) => changeView({ lensTags });
   const addTerm = (t) => {
+    if (t && projRef.current) {
+      if (!tagsRef.current.includes(t)) setLensTags([...tagsRef.current, t]);
+      setQuery(""); setActive(0); setSuggestOpen(false);
+      return;
+    }
     if (!t || viewRef.current.sel.includes(t)) return;
     setSelected([...viewRef.current.sel, t]);
     setQuery(""); setActive(0); setSuggestOpen(false);
@@ -221,7 +240,13 @@ export default function Graph({ lens }) {
   // The lens project: read it whenever the lens changes (the sidebar's "Viewing" list sets ?lens=).
   useEffect(() => {
     let gone = false;
-    const show = (p) => { if (gone) return; projRef.current = p; rebuild(1); };
+    const show = (p) => {
+      if (gone) return;
+      projRef.current = p;
+      const v = { ...viewRef.current, sel: [], lensTags: null }; // a new lens starts from its own tags
+      viewRef.current = v; setView(v);
+      rebuild(1, v);
+    };
     if (!lens) show(null);
     else fetch(`/api/projects/${lens}`).then((r) => (r.ok ? r.json() : null)).then(show).catch(() => show(null));
     return () => { gone = true; };
@@ -329,6 +354,8 @@ export default function Graph({ lens }) {
     } else if (e.key === "Escape") {
       e.stopPropagation(); // close the list, not the detail panel
       setSuggestOpen(false);
+    } else if (e.key === "Backspace" && !query && projRef.current && !view.sel.length && lensInfo.tags.length) {
+      setLensTags(lensInfo.tags.slice(0, -1));
     } else if (e.key === "Backspace" && !query && view.sel.length) {
       setSelected(view.sel.slice(0, -1)); // like a token field
     }
@@ -385,8 +412,14 @@ export default function Graph({ lens }) {
 
       {/* Bottom centre, over the map: what it's seen through and the tag filter; the chosen tags above */}
       <div className="map-dock" ref={dockRef}>
-        {view.sel.length > 0 && (
+        {(project || view.sel.length > 0) && (
           <div className="tag-chips">
+            {project && lensInfo.tags.map((t) => (
+              <button key={`p-${t}`} type="button" className="chip on" aria-label={`Take ${t} out of ${project.name}'s tags`} title="Take out"
+                onClick={() => setLensTags(lensInfo.tags.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
+            ))}
+            {project && view.lensTags && <button type="button" className="btn" onClick={() => setLensTags(null)}>Reset to {project.name}’s tags</button>}
+            {project && view.sel.length > 0 && <span className="muted">Filter:</span>}
             {view.sel.map((t) => (
               <button key={t} type="button" className="chip on" aria-label={`Remove ${t} filter`} title="Remove"
                 onClick={() => setSelected(view.sel.filter((x) => x !== t))}>{t}<span className="chip-x" aria-hidden="true">×</span></button>
@@ -413,7 +446,7 @@ export default function Graph({ lens }) {
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <circle cx="7" cy="7" r="5" /><path d="M11 11l3.5 3.5" />
             </svg>
-            <input id="page-search" value={query} placeholder={view.sel.length ? "Add another tag" : "Filter by tag"}
+            <input id="page-search" value={query} placeholder={project ? "Add a tag" : view.sel.length ? "Add another tag" : "Search tags"}
               aria-label="Filter by tag" role="combobox" aria-autocomplete="list" aria-expanded={showSuggest}
               aria-controls="tag-suggest" aria-activedescendant={showSuggest ? `tag-suggest-${active}` : undefined}
               onChange={(e) => { setQuery(e.target.value); setActive(0); setSuggestOpen(true); }}
