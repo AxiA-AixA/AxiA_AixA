@@ -43,6 +43,8 @@ const TUNING = [
 const DEFAULTS = Object.fromEntries(TUNING.map((t) => [t.key, t.value]));
 // The symbol image's library id (sha1 of public/brand/AxiA_Symbol_500.png). Its tags make the ring.
 const SYMBOL_ID = "95fc3d268585a41a";
+// The symbol's library entry: by that id, or (when this copy of the image file differs) the one AxiA added itself.
+const findSymbol = (byId) => byId.get(SYMBOL_ID) ?? [...byId.values()].find((n) => n.entry?.title === "AxiA symbol");
 const GRID_MAX = 300; // grid cards at most (the closest first)
 const ENOUGH = 10;     // references a lens should show; fewer: ask for one tag fewer
 const POLL_MS = 5000;    // library refresh, so new analysis results move in live
@@ -97,9 +99,10 @@ export default function Graph({ lens }) {
   function rebuild(heat = 1, v = viewRef.current) {
     const s = g.current;
     const proj = projRef.current;
-    const sym = s.byId.get(SYMBOL_ID);
+    const sym = findSymbol(s.byId);
     const projRefs = proj ? proj.refs.map((id) => s.byId.get(id)).filter(Boolean) : [];
-    const tags = proj ? lensTags(proj, projRefs.map((n) => n.entry)) : sym?.entry.tags ?? [];
+    const tags = proj ? lensTags(proj, projRefs.map((n) => n.entry))
+      : sym?.entry.status === "tagged" ? sym.entry.tags : []; // not tagged yet: only its colour, no ring
     const centre = proj ? (s.projNode ??= { hub: true, center: true }) : sym;
     if (centre) thumb(proj ? projRefs[0] ?? centre : sym); // first in the image queue
     const hubs = tags.map((t) => {
@@ -180,7 +183,7 @@ export default function Graph({ lens }) {
         s.byId.set(e.id, { id: e.id, hub: false, entry: e });
         changed = true;
       } else {
-        if (n.entry.tags.join() !== e.tags.join()) changed = true;
+        if (n.entry.tags.join() !== e.tags.join() || n.entry.status !== e.status) changed = true;
         n.entry = e;
         if (detailRef.current?.id === e.id) setDetail(e); // keep the open panel current
       }
@@ -347,9 +350,23 @@ export default function Graph({ lens }) {
     }
   }
 
-  const symbol = g.current.byId.get(SYMBOL_ID)?.entry;
+  const symbol = findSymbol(g.current.byId)?.entry;
   const symbolMissing = !lens && count > 0 && !symbol && online;
   useEffect(() => { if (symbolMissing && symbolAdd === "idle") addSymbol(); }, [symbolMissing, symbolAdd]);
+  // In the library but not tagged by the AI yet: waiting for it, or it couldn't (e.g. no API key).
+  // (Its colour alone can show up as a tag before then, so this goes by status, not by tags.)
+  const symbolUntagged = !lens && online && symbol && symbol.status !== "tagged";
+  const symbolStuck = symbolUntagged && (symbol.status === "failed" || symbol.status === "new");
+  async function retagSymbol() {
+    setSymbolAdd("adding");
+    try {
+      const res = await fetch("/api/library/retag", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: [symbol.id] }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error ?? "the analyser didn’t answer");
+      setSymbolAdd("done");
+      loadRef.current();
+    } catch (e) { setSymbolError(e.message); setSymbolAdd("failed"); }
+  }
   const countLine = !online ? "AI analyser is off — open axia-prototype/Axia-실행-Mac.command"
     : view.sel.length ? `${hits} of ${count} references`
     : !lensInfo.tags.length ? `${lensInfo.name} has no tags yet`
@@ -470,6 +487,20 @@ export default function Graph({ lens }) {
       )}
       {symbolMissing && symbolAdd === "adding" && (
         <div className="empty"><h1>Adding the AxiA symbol…</h1><p>The map appears once the AI has tagged it.</p></div>
+      )}
+      {symbolStuck && symbolAdd !== "adding" && (
+        <div className="empty">
+          <h1>The AI couldn’t tag the AxiA symbol</h1>
+          <p>{/api key/i.test(symbol.error ?? "") ? "The analyser has no API key. Add one in Analyser settings, then try again."
+            : symbolAdd === "failed" ? `AxiA couldn’t ask again: ${symbolError}` : symbol.error ? `${symbol.error} Try again.` : "Auto-tagging is off. Ask the AI to tag it."}</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <a className="btn primary" href="http://localhost:8770" target="_blank" rel="noopener noreferrer">Analyser settings ↗</a>
+            <button className="btn" onClick={retagSymbol}>Try again</button>
+          </div>
+        </div>
+      )}
+      {symbolUntagged && (!symbolStuck || symbolAdd === "adding") && (
+        <div className="empty"><h1>Tagging the AxiA symbol…</h1><p>The map appears once the AI has tagged it.</p></div>
       )}
     </div>
   );
